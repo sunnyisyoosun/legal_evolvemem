@@ -1,0 +1,133 @@
+{
+  "best_round": 3,
+  "best_f1": 0.19115374321139483,
+  "final_config": {
+    "semantic_top_k": 100,
+    "keyword_top_k": 100,
+    "structured_top_k": 0,
+    "max_context": 100,
+    "enable_entity_swap": true,
+    "entity_swap_semantic_k": 30,
+    "entity_swap_keyword_k": 30,
+    "fusion_mode": "rrf",
+    "weight_semantic": 0.3,
+    "weight_keyword": 1.0,
+    "weight_structured": 0.5,
+    "enable_query_rewrite": false,
+    "query_rewrite_repeat": 1,
+    "enable_chapter_filter": false,
+    "time_decay_half_life_days": null,
+    "reference_date": null,
+    "reflection_rounds": 0,
+    "answer_style": "concise",
+    "per_category_overrides": {},
+    "enable_query_decomposition": false,
+    "decomposition_max_subqs": 3,
+    "decomposition_merge_top_k": 10,
+    "enable_intent_planning": true,
+    "intent_max_subqs": 4,
+    "intent_merge_top_k": 15,
+    "intent_final_context": 30,
+    "enable_coverage_reflection": false,
+    "coverage_max_rounds": 2,
+    "coverage_gap_max_queries": 3,
+    "enable_kg_expansion": false,
+    "kg_expand_top_k": 10,
+    "kg_seed_top_k": 10,
+    "kg_min_score": 2.0,
+    "kg_keep_strategy": "replace_tail",
+    "enable_answer_verification": false,
+    "verification_style": "strict",
+    "locomo_cat5_mcq": false,
+    "locomo_cat1_single_fact": false,
+    "locomo_cat2_temporal_format": false,
+    "locomo_cat3_inferential_nuanced": false,
+    "locomo_cat4_verbatim_copy": false,
+    "answer_model": null,
+    "answer_model_ensemble": null,
+    "mmr_diversity_weight": 0.0,
+    "mmr_candidate_pool": 40
+  },
+  "trajectory": [
+    {
+      "round": 0,
+      "f1": 0.18327237127670565,
+      "zero": 76,
+      "mems": 5452,
+      "improvements": [
+        "semantic_top_k: 0 -> 100",
+        "fusion_mode: keyword_only -> weighted_sum",
+        "weight_semantic: 1.0 -> 0.3"
+      ]
+    },
+    {
+      "round": 1,
+      "f1": 0.18655575911603534,
+      "zero": 74,
+      "mems": 5452,
+      "improvements": [
+        "ELITISM-ACCEPT: delta=+0.0033, new best",
+        "entity_swap_semantic_k: 15 -> 30",
+        "fusion_mode: weighted_sum -> rrf",
+        "enable_entity_swap: False -> True",
+        "entity_swap_keyword_k: 10 -> 30"
+      ]
+    },
+    {
+      "round": 2,
+      "f1": 0.18696743030068888,
+      "zero": 76,
+      "mems": 5452,
+      "improvements": [
+        "ELITISM-SOFT-ACCEPT: delta=+0.0004 (below +0.003 threshold, kept as new baseline)",
+        "intent_final_context: 25 -> 30",
+        "enable_intent_planning: False -> True"
+      ]
+    },
+    {
+      "round": 3,
+      "f1": 0.19115374321139483,
+      "zero": 69,
+      "mems": 5452,
+      "improvements": [
+        "ELITISM-ACCEPT: delta=+0.0042, new best",
+        "enable_intent_planning: True -> False"
+      ]
+    },
+    {
+      "round": 4,
+      "f1": 0.18696743030068888,
+      "zero": 76,
+      "mems": 5452,
+      "improvements": [
+        "ELITISM-REJECT: delta=-0.0042 \u2264 threshold, revert to round 3 (f1=0.1912)",
+        "intent_merge_top_k: 15 -> 20",
+        "per_category_overrides: {} -> {'4': {'mmr_diversity_weight': 0.6, 'max_context': 25}}"
+      ]
+    },
+    {
+      "round": 5,
+      "f1": 0.18901092930937063,
+      "zero": 71,
+      "mems": 5452,
+      "improvements": [
+        "ELITISM-REJECT: delta=-0.0021 \u2264 threshold, revert to round 3 (f1=0.1912)",
+        "entity_swap_semantic_k: 30 -> 15",
+        "weight_semantic: 0.3 -> 0.2",
+        "entity_swap_keyword_k: 30 -> 15"
+      ]
+    },
+    {
+      "round": 6,
+      "f1": 0.19004453558895462,
+      "zero": 72,
+      "mems": 5452,
+      "improvements": [
+        "ELITISM-REJECT: delta=-0.0011 \u2264 threshold, revert to round 3 (f1=0.1912)",
+        "intent_final_context: 30 -> 35",
+        "intent_merge_top_k: 15 -> 20"
+      ]
+    }
+  ],
+  "total_duration": 1162.8355021476746
+}

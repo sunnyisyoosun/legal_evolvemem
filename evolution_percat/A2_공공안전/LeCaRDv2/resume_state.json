@@ -1,0 +1,273 @@
+{
+  "round": 6,
+  "ret_config": {
+    "semantic_top_k": 100,
+    "keyword_top_k": 100,
+    "structured_top_k": 0,
+    "max_context": 100,
+    "enable_entity_swap": true,
+    "entity_swap_semantic_k": 30,
+    "entity_swap_keyword_k": 30,
+    "fusion_mode": "rrf",
+    "weight_semantic": 0.3,
+    "weight_keyword": 1.0,
+    "weight_structured": 0.5,
+    "enable_query_rewrite": false,
+    "query_rewrite_repeat": 1,
+    "enable_chapter_filter": false,
+    "time_decay_half_life_days": null,
+    "reference_date": null,
+    "reflection_rounds": 0,
+    "answer_style": "concise",
+    "per_category_overrides": {},
+    "enable_query_decomposition": false,
+    "decomposition_max_subqs": 3,
+    "decomposition_merge_top_k": 10,
+    "enable_intent_planning": true,
+    "intent_max_subqs": 4,
+    "intent_merge_top_k": 20,
+    "intent_final_context": 25,
+    "enable_coverage_reflection": false,
+    "coverage_max_rounds": 2,
+    "coverage_gap_max_queries": 3,
+    "enable_kg_expansion": false,
+    "kg_expand_top_k": 10,
+    "kg_seed_top_k": 10,
+    "kg_min_score": 2.0,
+    "kg_keep_strategy": "replace_tail",
+    "enable_answer_verification": false,
+    "verification_style": "strict",
+    "locomo_cat5_mcq": false,
+    "locomo_cat1_single_fact": false,
+    "locomo_cat2_temporal_format": false,
+    "locomo_cat3_inferential_nuanced": false,
+    "locomo_cat4_verbatim_copy": false,
+    "answer_model": null,
+    "answer_model_ensemble": null,
+    "mmr_diversity_weight": 0.0,
+    "mmr_candidate_pool": 40
+  },
+  "best_f1": 0.4811222207010952,
+  "best_round": 2,
+  "best_config": {
+    "semantic_top_k": 100,
+    "keyword_top_k": 100,
+    "structured_top_k": 0,
+    "max_context": 100,
+    "enable_entity_swap": true,
+    "entity_swap_semantic_k": 30,
+    "entity_swap_keyword_k": 30,
+    "fusion_mode": "rrf",
+    "weight_semantic": 0.3,
+    "weight_keyword": 1.0,
+    "weight_structured": 0.5,
+    "enable_query_rewrite": false,
+    "query_rewrite_repeat": 1,
+    "enable_chapter_filter": false,
+    "time_decay_half_life_days": null,
+    "reference_date": null,
+    "reflection_rounds": 0,
+    "answer_style": "concise",
+    "per_category_overrides": {},
+    "enable_query_decomposition": false,
+    "decomposition_max_subqs": 3,
+    "decomposition_merge_top_k": 10,
+    "enable_intent_planning": false,
+    "intent_max_subqs": 4,
+    "intent_merge_top_k": 15,
+    "intent_final_context": 25,
+    "enable_coverage_reflection": false,
+    "coverage_max_rounds": 2,
+    "coverage_gap_max_queries": 3,
+    "enable_kg_expansion": false,
+    "kg_expand_top_k": 10,
+    "kg_seed_top_k": 10,
+    "kg_min_score": 2.0,
+    "kg_keep_strategy": "replace_tail",
+    "enable_answer_verification": false,
+    "verification_style": "strict",
+    "locomo_cat5_mcq": false,
+    "locomo_cat1_single_fact": false,
+    "locomo_cat2_temporal_format": false,
+    "locomo_cat3_inferential_nuanced": false,
+    "locomo_cat4_verbatim_copy": false,
+    "answer_model": null,
+    "answer_model_ensemble": null,
+    "mmr_diversity_weight": 0.0,
+    "mmr_candidate_pool": 40
+  },
+  "attempt_history": [
+    {
+      "round": 0,
+      "diff": {},
+      "f1_before": null,
+      "f1_after": 0.45773098440354104,
+      "delta": 0.0,
+      "accepted": true,
+      "llm_status": "ok",
+      "inert_fields": [
+        "weight_semantic",
+        "semantic_top_k",
+        "weight_structured",
+        "structured_top_k",
+        "fusion_mode"
+      ]
+    },
+    {
+      "round": 1,
+      "diff": {
+        "fusion_mode": [
+          "keyword_only",
+          "weighted_sum"
+        ],
+        "weight_semantic": [
+          1.0,
+          0.3
+        ],
+        "semantic_top_k": [
+          0,
+          100
+        ]
+      },
+      "f1_before": 0.45773098440354104,
+      "f1_after": 0.4696616029916745,
+      "delta": 0.011930618588133435,
+      "accepted": true,
+      "llm_status": "ok",
+      "inert_fields": [
+        "weight_structured",
+        "structured_top_k"
+      ]
+    },
+    {
+      "round": 2,
+      "diff": {
+        "fusion_mode": [
+          "weighted_sum",
+          "rrf"
+        ],
+        "entity_swap_semantic_k": [
+          15,
+          30
+        ],
+        "enable_entity_swap": [
+          false,
+          true
+        ],
+        "entity_swap_keyword_k": [
+          10,
+          30
+        ]
+      },
+      "f1_before": 0.4696616029916745,
+      "f1_after": 0.4811222207010952,
+      "delta": 0.01146061770942075,
+      "accepted": true,
+      "llm_status": "ok",
+      "inert_fields": [
+        "weight_structured",
+        "structured_top_k"
+      ]
+    },
+    {
+      "round": 3,
+      "diff": {
+        "enable_intent_planning": [
+          false,
+          true
+        ]
+      },
+      "f1_before": 0.4811222207010952,
+      "f1_after": 0.4094299641419241,
+      "delta": -0.07169225655917111,
+      "accepted": false,
+      "llm_status": "ok",
+      "inert_fields": [
+        "weight_structured",
+        "structured_top_k"
+      ]
+    },
+    {
+      "round": 4,
+      "diff": {
+        "intent_final_context": [
+          25,
+          30
+        ],
+        "enable_intent_planning": [
+          false,
+          true
+        ]
+      },
+      "f1_before": 0.4811222207010952,
+      "f1_after": 0.40474296856324066,
+      "delta": -0.07637925213785457,
+      "accepted": false,
+      "llm_status": "ok",
+      "inert_fields": [
+        "weight_structured",
+        "structured_top_k"
+      ]
+    },
+    {
+      "round": 5,
+      "diff": {
+        "entity_swap_semantic_k": [
+          30,
+          15
+        ],
+        "weight_semantic": [
+          0.3,
+          0.2
+        ],
+        "entity_swap_keyword_k": [
+          30,
+          15
+        ]
+      },
+      "f1_before": 0.4811222207010952,
+      "f1_after": 0.4794789400238998,
+      "delta": -0.0016432806771954356,
+      "accepted": false,
+      "llm_status": "ok",
+      "inert_fields": [
+        "weight_structured",
+        "structured_top_k"
+      ]
+    },
+    {
+      "round": 6,
+      "diff": {
+        "intent_final_context": [
+          25,
+          30
+        ],
+        "enable_intent_planning": [
+          false,
+          true
+        ]
+      },
+      "f1_before": 0.4811222207010952,
+      "f1_after": 0.40759624819895557,
+      "delta": -0.07352597250213966,
+      "accepted": false,
+      "llm_status": "ok",
+      "inert_fields": [
+        "weight_structured",
+        "structured_top_k"
+      ]
+    }
+  ],
+  "pending_diff": {
+    "intent_merge_top_k": [
+      15,
+      20
+    ],
+    "enable_intent_planning": [
+      false,
+      true
+    ]
+  },
+  "consec_noaccept": 4,
+  "pending_llm_status": "ok"
+}

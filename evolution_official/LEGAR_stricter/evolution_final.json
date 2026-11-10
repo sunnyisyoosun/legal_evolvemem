@@ -1,0 +1,150 @@
+{
+  "best_round": 4,
+  "best_f1": 0.04417713254934992,
+  "final_config": {
+    "semantic_top_k": 100,
+    "keyword_top_k": 100,
+    "structured_top_k": 0,
+    "max_context": 100,
+    "enable_entity_swap": false,
+    "entity_swap_semantic_k": 15,
+    "entity_swap_keyword_k": 10,
+    "fusion_mode": "weighted_sum",
+    "weight_semantic": 0.3,
+    "weight_keyword": 1.0,
+    "weight_structured": 0.5,
+    "enable_query_rewrite": true,
+    "query_rewrite_repeat": 1,
+    "enable_chapter_filter": false,
+    "time_decay_half_life_days": null,
+    "reference_date": null,
+    "reflection_rounds": 0,
+    "answer_style": "concise",
+    "per_category_overrides": {
+      "1": {
+        "enable_entity_swap": true,
+        "entity_swap_keyword_k": 20
+      },
+      "3": {
+        "mmr_diversity_weight": 0.6,
+        "max_context": 12
+      },
+      "4": {
+        "enable_entity_swap": true,
+        "entity_swap_keyword_k": 20
+      },
+      "5": {
+        "enable_entity_swap": true,
+        "entity_swap_keyword_k": 20
+      }
+    },
+    "enable_query_decomposition": false,
+    "decomposition_max_subqs": 3,
+    "decomposition_merge_top_k": 10,
+    "enable_intent_planning": false,
+    "intent_max_subqs": 4,
+    "intent_merge_top_k": 15,
+    "intent_final_context": 25,
+    "enable_coverage_reflection": false,
+    "coverage_max_rounds": 2,
+    "coverage_gap_max_queries": 3,
+    "enable_kg_expansion": false,
+    "kg_expand_top_k": 10,
+    "kg_seed_top_k": 10,
+    "kg_min_score": 2.0,
+    "kg_keep_strategy": "replace_tail",
+    "enable_answer_verification": false,
+    "verification_style": "strict",
+    "locomo_cat5_mcq": false,
+    "locomo_cat1_single_fact": false,
+    "locomo_cat2_temporal_format": false,
+    "locomo_cat3_inferential_nuanced": false,
+    "locomo_cat4_verbatim_copy": false,
+    "answer_model": null,
+    "answer_model_ensemble": null,
+    "mmr_diversity_weight": 0.0,
+    "mmr_candidate_pool": 40
+  },
+  "trajectory": [
+    {
+      "round": 0,
+      "f1": 0.03626994725337974,
+      "zero": 3637,
+      "mems": 14525,
+      "improvements": [
+        "weight_semantic: 1.0 -> 0.3",
+        "semantic_top_k: 0 -> 100",
+        "per_category_overrides: {} -> {'1': {'enable_entity_swap': True, 'entity_swap_keyword_k': 15}, '3': {'mmr_dive",
+        "fusion_mode: keyword_only -> weighted_sum"
+      ]
+    },
+    {
+      "round": 1,
+      "f1": 0.04387153218294218,
+      "zero": 3550,
+      "mems": 14525,
+      "improvements": [
+        "ELITISM-ACCEPT: delta=+0.0076, new best",
+        "entity_swap_keyword_k: 10 -> 30",
+        "entity_swap_semantic_k: 15 -> 30",
+        "enable_entity_swap: False -> True",
+        "fusion_mode: weighted_sum -> rrf"
+      ]
+    },
+    {
+      "round": 2,
+      "f1": 0.041923090060970926,
+      "zero": 3586,
+      "mems": 14525,
+      "improvements": [
+        "ELITISM-REJECT: delta=-0.0019 \u2264 threshold, revert to round 1 (f1=0.0439)",
+        "fusion_mode: weighted_sum -> rrf",
+        "enable_intent_planning: False -> True"
+      ]
+    },
+    {
+      "round": 3,
+      "f1": 0.03680341727991968,
+      "zero": 3683,
+      "mems": 14525,
+      "improvements": [
+        "ELITISM-REJECT: delta=-0.0071 \u2264 threshold, revert to round 1 (f1=0.0439)",
+        "enable_query_rewrite: False -> True",
+        "per_category_overrides: {'1': {'enable_entity_swap': True, 'entity_swap_keyword_k': 15}, '3': {'mmr_dive -> {'1': {'enable_entity_swap': True, 'entity_swap_keyword_k': 20}, '3': {'mmr_dive"
+      ]
+    },
+    {
+      "round": 4,
+      "f1": 0.04417713254934992,
+      "zero": 3549,
+      "mems": 14525,
+      "improvements": [
+        "ELITISM-SOFT-ACCEPT: delta=+0.0003 (below +0.003 threshold, kept as new baseline)",
+        "fusion_mode: weighted_sum -> rrf",
+        "enable_intent_planning: False -> True"
+      ]
+    },
+    {
+      "round": 5,
+      "f1": 0.03734278704083045,
+      "zero": 3676,
+      "mems": 14525,
+      "improvements": [
+        "ELITISM-REJECT: delta=-0.0068 \u2264 threshold, revert to round 4 (f1=0.0442)",
+        "enable_intent_planning: False -> True"
+      ]
+    },
+    {
+      "round": 6,
+      "f1": 0.03906405353119922,
+      "zero": 3651,
+      "mems": 14525,
+      "improvements": [
+        "ELITISM-REJECT: delta=-0.0051 \u2264 threshold, revert to round 4 (f1=0.0442)",
+        "fusion_mode: weighted_sum -> rrf",
+        "enable_intent_planning: False -> True"
+      ]
+    }
+  ],
+  "total_duration": 30438.974696159363
+}

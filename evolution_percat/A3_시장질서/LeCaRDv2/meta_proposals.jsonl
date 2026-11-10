@@ -1,0 +1,1 @@
+{"round": 2, "decision_type": "propose_new_dim", "reasoning": "All current knobs have been exhausted with no improvement in primary metric, and subcategory 2 remains severely underperforming despite multiple configuration changes.", "proposal": "add graph-neighbor retrieval: follow entity-links between memories to enhance context-awareness for legal case reasoning"}

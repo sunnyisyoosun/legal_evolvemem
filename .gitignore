@@ -1,0 +1,21 @@
+# Regenerated from source data — build_cases.py / build_embeddings.py
+corpus/
+embeddings/
+
+# Auto-rebuilt on first use (LegalIndex.CACHE_DIR), 360MB
+cache/
+
+# Per-query dumps, 1.1GB across 97 files. The aggregate each round is in
+# round_N.json, which IS tracked; raw_results.jsonl is the per-query detail
+# and is reproducible from that round's `config_scored` by re-running
+# retrieval. Kept on disk, out of git.
+**/raw_results.jsonl
+
+# Run files (re-derivable by re-scoring)
+runs/
+
+__pycache__/
+*.pyc
+
+# jieba dictionary cache, rebuilt on first use (legal_retriever._set_jieba_cache)
+.cache/
