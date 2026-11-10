@@ -145,6 +145,19 @@ def _install_diagnosis_context(qa_pairs: list[dict]) -> None:
             names[cat] = label or f"class{cat}"
     DIAG.set_category_names(names)
     DIAG.set_prompt_exclude(INERT_DIMENSIONS)
+    # Restrict the action space to the fields MEASURED to change the ranking
+    # in this pipeline (recipe_learning.EFFECTIVE_FIELDS: 12 of 45; see that
+    # module for the probe). Before this, 37% of the field changes the loop
+    # made over 16 runs landed on fields that cannot move the metric --
+    # `enable_intent_planning` 28 times, `entity_swap_semantic_k` 18,
+    # `intent_final_context` 12 -- each one a step-cap slot spent on a round
+    # that could not teach anything. The remaining 33 fields stay in
+    # RetrievalConfig at their defaults; they are simply not offered.
+    import recipe_learning as _RLF
+    DIAG.set_action_fields(_RLF.EFFECTIVE_FIELDS)
+    print(f"action space: {len(_RLF.EFFECTIVE_FIELDS)} measured-effective "
+          f"field(s) + per_category_overrides "
+          f"(of {len(_RLF._FIELD_TYPE)} in RetrievalConfig)", flush=True)
     # Legal fact patterns and case digests do not fit the defaults sized for
     # conversational utterances.
     DIAG.set_sample_widths(question=320, field=200, retrieved_shown=5)
