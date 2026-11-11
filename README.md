@@ -181,4 +181,3 @@ Evolution integrity: all 7 diagnosis calls OK
 `mecab.mecab.MeCab`)과 다르면 **실행이 멈춘다.** 알고서 받아들이려면
 `--allow-tokenizer-fallback`.
 
-
