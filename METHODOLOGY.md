@@ -117,23 +117,23 @@ LLM self-evolution engine은 **검증 대상이 아니라 전제**다. 보여야
 | party-strip view | **죽었다.** 최대 +0.0004, LeCaRD −0.0349. 옛 최고 설정 ⑤가 이제 꼴찌다. (삭제 대상은 여전히 인명만 — 넓히면 세 언어 모두 음수) | §8, JOURNAL §16 |
 | 카테고리별 설정 | **요구사항이다** — 실제 판례 검색은 죄종별로 들어가고, 카테고리는 데이터셋마다 다르다. 측정이 뒷받침: 같은 레버 부호가 클래스마다 갈리고(−0.34 ~ +0.012) 조립이 val에서 +0.0079 대 전역 +0.0012 | §6, JOURNAL §15 |
 | action space | 45개 중 **12개만** 실제로 순위를 바꾼다. 나머지 33개는 **제안 대상에서 제거했다**(2026-11-10) | JOURNAL §20·§26 |
-| BM25 레버 | `keyword_top_k`·`weight_keyword`는 **작동하는데 한 번도 스윕하지 않았고 어떤 레시피에도 없다** — 근거 없이 100/1.0 고정 | JOURNAL §25 |
+| BM25 레버 | `keyword_top_k`·`weight_keyword`는 **작동하는데 한 번도 sweep하지 않았고 어떤 레시피에도 없다** — 근거 없이 100/1.0 고정 | JOURNAL §25 |
 | 레시피 | **5장(데이터셋에 따라 4장), 카드당 메커니즘 하나.** 카드는 **구조만** 말하고 **크기(가중치·깊이)는 LLM이 고른다** — 상수를 박으면 데이터셋마다 다른 최적값을 원리적으로 못 맞춘다. 32칸 중 주장 가능 10칸이고 어느 카드도 4개 중 2개를 못 넘긴다. seed로 낸 성적을 self-evolution의 성과로 읽으면 순환이다(§10 경고) | §9, JOURNAL §18·§27·§28 |
 | 레시피 승인 | paired bootstrap CI 하한 > 0 **AND** 평균 > 0.003 **AND** 종점 > θ₀. 마지막 조건이 빠져 있어 LeCaRD에서 **+15.65 pp**를 주장한 카드의 종점이 θ₀보다 낮았다 | JOURNAL §21·§28 |
 | 쿼리당 LLM | `intent_planning` 계열은 −8.8 pp이고 **쿼리당 LLM 0회라는 구조를 깬다** | §3 |
 | 비용 | 모든 비교는 사실 **비용 비교**인데 계측이 없었다. 지금은 `(쿼리,설정)` 채점 횟수를 센다. 축 하나 전수 grid ≈55,500 vs 진화 7라운드×4데이터셋 ≈84,400 — **축이 하나면 grid가 이긴다** | JOURNAL §28 |
-| 실험의 전제 | LLM self-evolution 엔진은 **검증 대상이 아니라 전제**다. 보여야 할 것은 **데이터셋마다 다른 값에 스스로 도달하는가**이고, 정답지(`weight_semantic` 전수 스윕)는 채점용으로만 쓴다 — 프롬프트·카드에 넣으면 순환이다 | JOURNAL §28 |
+| 실험의 전제 | LLM self-evolution 엔진은 **검증 대상이 아니라 전제**다. 보여야 할 것은 **데이터셋마다 다른 값에 스스로 도달하는가**이고, 정답지(`weight_semantic` 전수 sweep)는 채점용으로만 쓴다 — 프롬프트·카드에 넣으면 순환이다 | JOURNAL §28 |
 | 프롬프트 언어 | 진단 프롬프트를 **코퍼스 언어**로 맞춘다(zh/zh/ko/en). 템플릿·레시피 설명·런타임 블록 셋 다. 식별자·enum·JSON 키·측정 수치는 세 언어에서 동일하게 유지 — 번역하면 검증기가 '실패한 아이디어'로 기록한다 | JOURNAL §29 |
 | 레시피 숫자 | 머리말의 `expected_lift_pp`는 **중요도와 반대로** 정렬돼 있었다(최대 +9.0 = 옛 코퍼스 피해의 크기, 최소 +0.1 = 유일하게 일관된 레버). 이제 **해당 데이터셋 train 측정이 있을 때만** 찍고, 조건부 델타와 θ₀ 대비 종점을 함께 쓴다 | JOURNAL §31 |
 | 실패 사례 | 0점 질의만 보여주면서 **순서 문제를 진단하라**고 요구했다. 이제 0점 + 저점 두 층위, 머리말에 정답 문서의 순위. 원시 ID 나열(최대 40개 불투명 정수)은 제거 — 토큰 9,912 → 5,513 | JOURNAL §32 |
-| recipe pool | 9장 → **5장**. proposal이 action space 필드의 스칼라 크기뿐인 카드 넷 제거 — `undo_semantic_overweight`의 0.3은 LeCaRDv2의 train 최적값이었고, LEGAR(최적 2.0)에는 **반대 방향**을 가리켰다. 트리거는 값·방향 없는 `state_notes()`로 | JOURNAL §33 |
+| recipe pool | 9장 → **5장**. proposal이 action space 필드의 스칼라 크기뿐인 카드 넷 제거 — `undo_semantic_overweight`의 0.3은 LeCaRDv2의 train 최적값이었고, LEGAR(최적 2.0)에는 **반대 방향**을 가리켰다. trigger는 값·방향 없는 `state_notes()`로 | JOURNAL §33 |
 | 데이터셋별 pool | `cache/rewrite/`에 **LeCaRDv2만** 있다 → `enable_query_rewrite`가 나머지 셋에서 무효. action space 12→**11**, 레시피 5→**4장**으로 데이터셋별 축소 | JOURNAL §37 |
 | 프롬프트 검증 | action space와 우선순위 절은 이제 **렌더된다**(손으로 쓴 목록 둘이 제거된 필드를 계속 보여주고 있었다). `verify_prompt.py`가 조립된 프롬프트에 대해 단정한다 — 조각 검사는 프롬프트 검사가 아니다 | JOURNAL §38 |
 | 프롬프트가 말하는 제약 | 수용 임계값(데이터셋별 실측 noise floor)과 **남은 라운드 수**를 이제 프롬프트에 찍는다. 전에는 LLM이 자기 수가 살아남을 크기인지 몰랐다 | JOURNAL §37 |
 | 열려 있는 크기 | **`weight_semantic` 하나뿐**(최적 0.1~2.0, 20배). `weight_structured`·`entity_swap_keyword_k`는 각자의 view가 네 데이터셋 전부 음수/무효라 찾을 값이 없다 — 카드에서 뺀 비용은 0 | JOURNAL §33 |
 | 라운드당 LLM 호출 | **1이 아니라 2였다.** Phase 7b의 meta-analyzer가 매 라운드 두 번째 호출(temp 0.2, LoCoMo 프롬프트)을 하고 elitist가 결과를 전부 버렸다 → 껐다. §28의 검색 횟수 비용표는 `(쿼리,설정)` 채점 단위라 **영향 없다**; 틀린 것은 LLM 호출 수(28 → 실제 56)와 temperature 0 재현성 주장이다 | JOURNAL §34 |
 | 수용 임계값 | `0.003`은 엔진 기본값이고 **네 중 셋에서 noise floor보다 낮았다** (LeCaRD 7.7배). 즉 잡음을 수락하고 있었다. 이제 데이터셋별 **측정된 noise floor**(paired bootstrap CI95 반폭 중앙값): 0.0240 / 0.0050 / 0.0052 / 0.0018 | JOURNAL §35 |
-| LeCaRD 해상도 | 107질의 = train 79 / **val 8** / **test 20**. train noise floor 2.40 pp > 최선의 알려진 수 2.09 pp, val Δ 구간 **±14 pp**, test 약 ±10 pp. **원데이터이므로 폴드는 그대로 두고 보고를 바꿨다** — 모든 숫자가 CI를 달고, val 선택은 '순위'로 명시 | JOURNAL §35~36 |
+| LeCaRD 해상도 | 107질의 = train 79 / **val 8** / **test 20**. train noise floor 2.40 pp > 최선의 알려진 수 2.09 pp, val Δ 구간 **±14 pp**, test 약 ±10 pp. **원데이터이므로 fold는 그대로 두고 보고를 바꿨다** — 모든 숫자가 CI를 달고, val 선택은 '순위'로 명시 | JOURNAL §35~36 |
 | 가중치와 fusion | "가중치는 weighted_sum에서만 의미 있다"는 **틀렸다**. `_accumulate`가 `rrf`에서도 `* w`를 한다 — RRF가 바꾸는 것은 점수뿐 | JOURNAL §33 |
 | 카테고리 라벨 | 분해 블록은 `per_category_overrides` 키(정수)만, 실패 요약은 장 이름만 쓰고 있었다 — **같은 분류를 두 블록이 다르게 라벨링**. 이제 `[1] 제17장 성범죄` 형태로 둘 다 | JOURNAL §30 |
 | 실패 요약 | 엔진의 요약은 `prediction`을 산문으로 읽는다. 우리 것은 문서 ID 목록이라 abstention은 **항상 0**, wrong은 zero의 복사본, "의역 증상"은 **상시 발화**였다. 재현율 문제/순서 문제로 교체 | JOURNAL §30 |
@@ -147,13 +147,25 @@ LLM self-evolution engine은 **검증 대상이 아니라 전제**다. 보여야
 
 ### 0.1 영어를 그대로 쓰는 이유
 
-이 문서는 **학술 용어와 코드 식별자를 영어로 둔다.** `view`, `fusion`,
-`action space`, `step cap`, `recipe`, `pool`, `fold`, `seam`, `noise floor`,
-`paired bootstrap` 같은 말은 억지로 옮기면 평소 쓰지 않는 단어가 되고, 논문이나
-코드와 대조할 때 다시 영어로 되돌려야 한다.
+**이 프로젝트의 세 문서 전부가 학술 용어와 코드 식별자를 영어로 둔다** —
+METHODOLOGY, [JOURNAL](JOURNAL.md), [PROGRESS](PROGRESS.md). 억지로 옮기면 평소
+쓰지 않는 단어가 되고, 논문이나 코드와 대조할 때 다시 영어로 되돌려야 한다.
+문서마다 표기가 다르면 그 되돌리기를 문서를 옮길 때마다 해야 한다.
+
+영어로 두는 말:
+
+| | |
+|---|---|
+| 검색 구조 | `view`, `fusion`, `pool`, `grid`, `sweep` |
+| 진화 루프 | `self-evolution`, `round`, `step cap`, `action space`, `elitist`, `trigger`, `recipe`, `seam` |
+| 평가 | `fold`, `noise floor`, `paired bootstrap`, `pp` |
 
 표준 한국어가 이미 있는 것은 한국어로 쓴다 — 재현율, 정밀도, 순위, 가중치,
-신뢰구간, 깊이.
+신뢰구간, 깊이, 증상, 정체.
+
+예외 둘: **레시피**와 **카드**는 한국어 표기를 쓴다(이미 일상 외래어이고 세 문서에서
+일관된다). 그리고 **코드 식별자는 번역 대상이 아니다** — `weight_semantic`,
+`fusion_mode`, `"rrf"`, JSON 키는 프롬프트에서도 영어로 고정한다(§0.3, JOURNAL §29).
 
 ### 0.2 핵심 용어
 
@@ -336,7 +348,7 @@ hits  = retrieve_multiview(index, text, config=cfg, category=cat)
 덮어쓴 값을 되돌린다.
 
 **3. `resolve_config`가 `retrieve_multiview` 안이 아니라 밖에 있다.** chapter filter와
-쿼리 재작성이 **해석된** 설정을 봐야 하기 때문이다. 엔진 안에서 풀면 그 두 단계가 base
+쿼리 재작성이 **해석된** 설정을 봐야 하기 때문이다. 엔진 안에서 pool면 그 두 단계가 base
 설정으로 돌아간다.
 
 **LLM은 검색을 하지 않는다.** 라운드가 끝난 뒤 성적표를 보고 "다음엔 이 설정을 이렇게 바꿔봐"라고
@@ -594,7 +606,7 @@ BM25만 `sole`이 0이 아닌 우리 상황(§8)에서는 **BM25의 깊은 순�
 
 **4번이 왜 중요한가.** 서로 의존하는 설정 5개를 켜야 이득이 나는 경우, 2개씩 나눠 가면 중간
 상태가 θ₀보다 나빠 전부 거부되고 라운드마다 원위치한다. 입력이 같으니 `temperature=0`인 LLM은
-같은 제안을 반복한다 — **무한 루프다.** 레시피 풀이 비어 있던 4회 실행이 전부 R1에서 멈춘
+같은 제안을 반복한다 — **무한 루프다.** 레시피 pool이 비어 있던 4회 실행이 전부 R1에서 멈춘
 메커니즘이고, 레시피가 그 5개를 1칸으로 묶자 R0에서 바로 출발할 수 있었던 이유다(§9·§10).
 
 ### fusion 코드에서 고친 것
@@ -760,13 +772,13 @@ weight_semantic  = 0.3                # ← 제거됨 (크기는 LLM이 고른�
 
 **이 차이가 R1 정체를 풀었다.** 위 5개를 필드 단위로 바꾸면 2칸씩이므로 **3라운드**가 걸린다.
 그런데 이 5개는 **서로 의존한다** — 예컨대 `semantic_top_k=100`만 켜고 `weight_semantic`을
-기본값에 두면 가중치가 과해 **θ₀보다 나빠진다.** 엘리트주의는 나빠진 라운드를 되돌리므로
+기본값에 두면 가중치가 과해 **θ₀보다 나빠진다.** elitist는 나빠진 라운드를 되돌리므로
 (`delta > acceptance_threshold`가 아니면 revert) **중간 상태가 전부 거부되어 목적지에
 도달할 수 없다.** 레시피는 그 5개를 **1칸**으로 넘겨 중간 상태를 건너뛴다
 (§2 "바깥 루프", §9).
 
 따라서 정확히 말하면: 레시피 없이 45개 필드만으로도 같은 지점에 **도달은 가능**하다.
-다만 의존하는 필드 bundle은 step-cap과 엘리트주의가 겹쳐 **실질적으로 도달 불가**다.
+다만 의존하는 필드 bundle은 step-cap과 elitist가 겹쳐 **실질적으로 도달 불가**다.
 레시피는 표현력을 넓히는 것이 아니라 **경로를 뚫는 것**이다.
 
 #### 한 줄 요약
@@ -775,7 +787,7 @@ weight_semantic  = 0.3                # ← 제거됨 (크기는 LLM이 고른�
 
 LLM은 둘 다 쓸 수 있다 — 필드를 직접 제안하거나(각 1칸), `use_recipe`로 장을 고르거나(1칸).
 
-### "레시피 풀"이란
+### "레시피 pool"이란
 
 벤치마크별 레시피 목록. 코드상으로는 딕셔너리 하나다.
 
@@ -787,25 +799,25 @@ RECIPE_POOLS = {
 pool = RECIPE_POOLS.get(benchmark, [])
 ```
 
-어댑터 이름(`legal_retrieval`)으로 자기 풀을 고른다. §7의 **"법률 풀이 비어 있었다"**는 이
+어댑터 이름(`legal_retrieval`)으로 자기 pool을 고른다. §7의 **"법률 pool이 비어 있었다"**는 이
 dict에 우리 항목이 없어 `[]`가 반환됐다는 뜻이고, 그래서 진단 프롬프트의
 `{available_recipes}` 자리가 매 라운드 비어 있었다.
 
 LoCoMo 14장을 그대로 쓸 수 없는 이유는 **측정 근거가 다른 도메인**이기 때문이다. 정체 탈출
 카드만 봐도 LoCoMo는 "top-k를 키워라", 판례는 **반대 방향**(더 얕게)이다(§8).
 
-### 풀 전체가 매 라운드 보이는 것은 아니다
+### pool 전체가 매 라운드 보이는 것은 아니다
 
 ```
-8장 (풀)
-  → 트리거(현재 설정 · attempt_history)를 통과한 것만
+8장 (pool)
+  → trigger(현재 설정 · attempt_history)를 통과한 것만
   → 이미 거부된 적 있는 수는 제외           ← match_recipes의 공통 가드(§9)
   → {available_recipes} 로 프롬프트에 노출
   → LLM이 use_recipe로 고르거나 무시        ← 강제가 아니라 제시
 ```
 
 θ₀에서는 `lexical_first_light_semantic` 한 장만, 정체 2회 후에는
-`escape_plateau_shallower_swap`이 추가로 뜬다(§9의 트리거 맵).
+`escape_plateau_shallower_swap`이 추가로 뜬다(§9의 trigger 맵).
 
 ### 45개 필드 전부
 
@@ -815,7 +827,7 @@ LoCoMo 14장을 그대로 쓸 수 없는 이유는 **측정 근거가 다른 도
 
 | 필드 | 레포 기본 | θ₀ | 측정 |
 |---|---|---|---|
-| `keyword_top_k` | 8 | **100** | BM25. **미측정** — 스윕한 적 없다(JOURNAL §25) |
+| `keyword_top_k` | 8 | **100** | BM25. **미측정** — sweep한 적 없다(JOURNAL §25) |
 | `semantic_top_k` | 20 | **0** | |
 | `structured_top_k` | 5 | **0** | metadata view. **10이 최적**, 그 이상 해로움 |
 | `max_context` | 25 | **100** | fusion 후 반환 개수. **RRF 깊이의 상한**(§2) |
@@ -825,7 +837,7 @@ LoCoMo 14장을 그대로 쓸 수 없는 이유는 **측정 근거가 다른 도
 | 필드 | 값 | 측정 |
 |---|---|---|
 | `fusion_mode` | `first_found` / `weighted_sum` / `rrf` / `*_only` | **진화가 찾은 최대 레버**(`ws → rrf` +0.0072) |
-| `weight_keyword` | 1.0 | 진화가 0.8로 낮춘 적 있음 — **일화이고 스윕이 아니다**(JOURNAL §25) |
+| `weight_keyword` | 1.0 | 진화가 0.8로 낮춘 적 있음 — **일화이고 sweep이 아니다**(JOURNAL §25) |
 | `weight_semantic` | 1.0 | **0.3 근처만 유효**, 1.0↑ −2.4 pp |
 | `weight_structured` | 0.5 | 0.8 → −9.0 pp |
 
@@ -1036,10 +1048,10 @@ val만 보면 운 좋은 라운드를 고르게 된다. 두 기준의 결과를 
 3. **레버가 쌓인 뒤에도 남는가** — 다른 레버 추가 후 재측정.
    (per-category override: 레버 추가 후 **0.0000**)
 
-### 스윕 설계가 결론을 만든다 (실패 사례)
+### sweep 설계가 결론을 만든다 (실패 사례)
 
-수동 스윕으로 `rrf_hybrid`(0.3926) < `ws_sem0.3`(0.4047)를 재고 **"RRF는 유망하지 않다"고
-접었다.** 그 스윕은 entity-swap을 **끈 채** fusion 모드만 비교했다. swap을 켜고 재면 순서가
+수동 sweep으로 `rrf_hybrid`(0.3926) < `ws_sem0.3`(0.4047)를 재고 **"RRF는 유망하지 않다"고
+접었다.** 그 sweep은 entity-swap을 **끈 채** fusion 모드만 비교했다. swap을 켜고 재면 순서가
 뒤집힌다 — RRF+swap이 `weighted_sum`+swap을 test에서 **+0.0044** 앞선다.
 
 이유는 구조적이다. 가중합은 점수 스케일이 다른 view(BM25 수천 점, semantic 0~1, 구조화
@@ -1129,7 +1141,7 @@ A2에서 +0.0119, A3에서 −0.3421로 **부호가 뒤집히므로** 전역 설
 | 층 | 모듈 | 보는 범위 | 초기 4회 실행 | **현재** |
 |---|---|---|---|---|
 | per-round 진단 | `diagnosis.py` | 이번 라운드 스냅샷 | 작동 | 작동 |
-| 레시피 (capability card) | `evolution_cookbook.py` | 실패 패턴 → 검증된 설정 bundle | **풀이 비어 있음** | **`RECIPES_LEGAL` 8장 투입 → 해결**(§9) |
+| 레시피 (capability card) | `evolution_cookbook.py` | 실패 패턴 → 검증된 설정 bundle | **pool이 비어 있음** | **`RECIPES_LEGAL` 8장 투입 → 해결**(§9) |
 | meta 분석 | `meta_analysis.py` | 라운드 **이력 전체** | 호출되나 제안 폐기 | **변동 없음**(`elitist=True` 유지) |
 
 **결과**: 2층을 채우자 R1 정체가 풀렸다 — R0에서 레시피 발동, R1·R2 연속 ACCEPT,
@@ -1142,7 +1154,7 @@ train 0.4184 / test 0.4101로 **수동 튜닝(0.4057)을 처음 이겼다**(§10
 > 아래 세 절(레시피 차단 / meta 분석 / 정체의 구조)은 **해결 전 진단 기록**이다.
 > 현재 상태가 아니라 "왜 막혀 있었는가"의 분석으로 읽어야 한다.
 
-### 레시피 — 법률 풀이 비어 있었다 (해결됨)
+### 레시피 — 법률 pool이 비어 있었다 (해결됨)
 
 ```python
 # evolution_cookbook.py:383  ← 수정 전
@@ -1152,7 +1164,7 @@ pool = RECIPES_LOCOMO if benchmark == "locomo" else []
 우리 어댑터 이름은 `legal_retrieval`이라 **15개 레시피가 전부 차단**됐다. 진단 프롬프트의
 `${available_recipes}` 슬롯이 매 라운드 비어 있었다.
 
-**조치** — 벤치마크 이름으로 풀을 고르는 구조로 바꾸고(2줄, LoCoMo 불변), 우리 측정 결과로
+**조치** — 벤치마크 이름으로 pool을 고르는 구조로 바꾸고(2줄, LoCoMo 불변), 우리 측정 결과로
 법률 레시피 8장을 새로 작성했다(§9).
 
 ```python
@@ -1164,12 +1176,12 @@ LoCoMo 15장을 그대로 쓰지 않은 이유는 대화 메모리 전제이기 
 레시피가 LoCoMo에서는 `escape_plateau_scalar_sweep`("top-k를 키워라")인데, 판례에서는
 **탈출 방향이 아래쪽**(swap을 얕게, 가중치를 낮게)이라 정반대다(§8).
 
-레시피는 단순 제안이 아니라 **실패 패턴 → 트리거 조건 → 검증된 설정 bundle → 기대 이득**을
+레시피는 단순 제안이 아니라 **실패 패턴 → trigger 조건 → 검증된 설정 bundle → 기대 이득**을
 묶은 것이다. 그중 `escape_plateau_scalar_sweep`은 `_consec_noaccept(h) >= 2`로 발동하는
 **정체 탈출 장치**다. 우리 R2~R6이 정확히 그 상태였는데 법률 레시피가 없어 아무것도 발동하지 않았다.
 
 → 앞서 "레포가 논문 Eq.4의 explore 분기를 빠뜨렸다"고 본 진단은 **부정확하다**.
-빠진 것이 아니라 **벤치마크별 레시피로 구현**되어 있고, 법률 풀이 없었다.
+빠진 것이 아니라 **벤치마크별 레시피로 구현**되어 있고, 법률 pool이 없었다.
 
 ### meta 분석 — 호출되지만 결과를 쓸 수 없다
 
@@ -1260,7 +1272,7 @@ if meta_plan.new_dimension_proposal:                              # 파일에 �
 > "탐색이 공간 안의 이득을 못 줍는다"는 진단은 비교 천장이 바뀌었으므로
 > 다시 측정해야 한다.
 >
-> train 스윕과 `measure_recipes`가 끝나면 이 절을 새 수치로 다시 쓴다. 그때까지
+> train sweep과 `measure_recipes`가 끝나면 이 절을 새 수치로 다시 쓴다. 그때까지
 > 아래 표는 **역사 기록**이다.
 
 
@@ -1470,7 +1482,7 @@ semantic을 크게 끌어올렸는데(문서 8,383자), LeCaRD(5,608자)에서�
 > capability Y is known to help by ~Z pp"*
 
 즉 **사람의 실험 결과를 레시피로 압축해 넣는 것이 설계상 정상 경로**다. LoCoMo 레시피 15장도
-그렇게 만들어졌다. 우리가 측정한 11개 레버가 정확히 이 형식이므로, 수동 스윕은 버려지는 작업이
+그렇게 만들어졌다. 우리가 측정한 11개 레버가 정확히 이 형식이므로, 수동 sweep은 버려지는 작업이
 아니라 **레시피의 재료**였다.
 
 ### 용어 — "레시피"란 무엇인가
@@ -1519,7 +1531,7 @@ Recipe(
 ),
 ```
 
-- `description`의 `0.28 vs 0.40`, `weight ~0.3` — **우리 수동 스윕 측정값을 손으로 적은 것**
+- `description`의 `0.28 vs 0.40`, `weight ~0.3` — **우리 수동 sweep 측정값을 손으로 적은 것**
   (§5의 sem_only 0.2814 vs θ₀ 0.4040). 생성되지 않는다
 - `expected_lift_pp=0.1` — 같다. 측정값 상수
 - `proposal`의 5개 필드 — **적용되는 유일한 부분**
@@ -1529,7 +1541,7 @@ Recipe(
 
 함수가 도는 것은 **①뿐**이다.
 
-**① 트리거 평가** (`match_recipes()`, `evolution_cookbook.py:542`) — 라운드당 1회
+**① trigger 평가** (`match_recipes()`, `evolution_cookbook.py:542`) — 라운드당 1회
 
 ```python
 pool = RECIPE_POOLS.get(benchmark, [])      # "legal_retrieval" → 우리 8장
@@ -1541,7 +1553,7 @@ for r in pool:
 `trigger(r, c, h)`의 세 인자는 **(이번 라운드 성적 요약, 현재 설정 dict, 과거 시도 이력)**이다.
 위 레시피는 `c`만 본다 — "fusion이 꺼져 있거나 semantic top-k가 0이면". 즉 **설정 상태에 대한
 순수 조건식**이고 성능을 보지 않는다. 우리 레버가 전부 설정 기반이라 QA 전용 신호
-(`abstention_count` 등)에 의존하지 않고 트리거를 쓸 수 있었다.
+(`abstention_count` 등)에 의존하지 않고 trigger를 쓸 수 있었다.
 
 **② 프롬프트 문자열로 렌더링** (`format_recipes_for_prompt()`, `:577`)
 
@@ -1554,7 +1566,7 @@ for r in pool:
 ```
 
 이것이 진단 프롬프트의 `{available_recipes}` 자리(`diagnosis.py:104`)에 들어간다. 발동한 것이
-없으면 `(no recipes triggered this round)` — **법률 풀이 비어 있던 이전 4회 실행이 매 라운드
+없으면 `(no recipes triggered this round)` — **법률 pool이 비어 있던 이전 4회 실행이 매 라운드
 이 문장이었다.**
 
 `Fields set:`은 `proposal` dict의 **키 이름만** 뽑은 것이다 (`:583`):
@@ -1612,7 +1624,7 @@ True인 장만 `{available_recipes}`로 프롬프트에 노출되고, LLM이 `us
 
 - **왜**: semantic 단독은 판례에서 BM25에 크게 못 미친다(0.28 vs 0.40). 가중치 ~0.3에서만
   도움이 되고 그 위로는 단조 감소한다
-- **트리거**: `fusion_mode`가 `keyword_only`/`first_found` **또는** `semantic_top_k == 0`
+- **trigger**: `fusion_mode`가 `keyword_only`/`first_found` **또는** `semantic_top_k == 0`
 - **제안**: `weighted_sum`, `semantic_top_k=100`, `keyword_top_k=100`,
   `weight_keyword=1.0`, `weight_semantic=0.3`
 - **왜 전제인가**: 점수 fusion이 없으면 entity-swap이 **아무 효과가 없다**(아래)
@@ -1623,7 +1635,7 @@ True인 장만 `{available_recipes}`로 프롬프트에 노출되고, LLM이 `us
 - **왜**: 피고인 이름은 두 사건이 유사한지와 무관하다
 - **깊이가 중요하다**: k=30이 +1.1 pp, k=100은 +0.4 pp — 이름 없는 쿼리는 덜 정밀하므로
   **얕게** 넣는다
-- **트리거**: (swap 꺼짐 **또는** `entity_swap_keyword_k < 15`) **AND**
+- **trigger**: (swap 꺼짐 **또는** `entity_swap_keyword_k < 15`) **AND**
   `fusion_mode ∈ {weighted_sum, rrf}`
 - **제안**: `enable_entity_swap=True`, `entity_swap_keyword_k/semantic_k=30`,
   **`fusion_mode="rrf"`**
@@ -1640,7 +1652,7 @@ True인 장만 `{available_recipes}`로 프롬프트에 노출되고, LLM이 `us
 
 - **왜 한 번인가**: 한 번 +1.3 pp, **두 번 +0.0**, 네 번 **−3.4**, 원본을 **대체하면 −17.0**.
   법률 용어 자체는 특정성이 없고 **원본 서술이 특정성을 담는다**
-- **트리거**: 재작성 꺼짐 **AND swap 꺼짐** AND fusion 활성
+- **trigger**: 재작성 꺼짐 **AND swap 꺼짐** AND fusion 활성
 - **swap과 배타인 이유**: 둘은 쿼리당 상관 +0.52로 겹치고, **둘을 켜면 하나만 켠 것보다
   나빴다**
 
@@ -1651,8 +1663,8 @@ True인 장만 `{available_recipes}`로 프롬프트에 노출되고, LLM이 `us
 
 - **근거**: semantic 0.3→1.0이 −2.4 pp, structured 0.1→0.8이 −9.0 pp. BM25의 순위가
   신호이고 나머지는 **밀어주기**다
-- **트리거 (a) 측정**: `weighted_sum` **AND** 해당 view가 켜진 상태에서 가중치 초과
-- **트리거 (b) 안전장치**: fusion 무관, 보조 가중치 **≥ 1.0**. 측정된 이득이 아니라
+- **trigger (a) 측정**: `weighted_sum` **AND** 해당 view가 켜진 상태에서 가중치 초과
+- **trigger (b) 안전장치**: fusion 무관, 보조 가중치 **≥ 1.0**. 측정된 이득이 아니라
   "측정 안 됨 ≠ 안전"이라는 판단이다 — 한 실행이 RRF에서 `weight_semantic=1.5`까지
   갔는데 막을 것이 없었다
 - **view가 켜졌는지 함께 보는 이유**: `weight_structured` 기본값이 0.5라, 가중치만 읽으면
@@ -1665,7 +1677,7 @@ True인 장만 `{available_recipes}`로 프롬프트에 노출되고, LLM이 `us
   추출 보정 36%→99.8%, 속성 학습) 가중합에서 최대 −9.0 pp였다. view별 max 정규화가
   **메타데이터 한 개 일치한 수천 문서를 같은 값으로 매핑**해 BM25 순위를 납작하게 만든다
 - **RRF에서는 부호가 뒤집힌다**: 순위만 쓰므로 얕은 메타데이터 view(k≤10)가 +0.002이고
-  **네 데이터셋 최적 설정에 모두 포함된다.** 그래서 트리거에 `weighted_sum` 조건이 있다
+  **네 데이터셋 최적 설정에 모두 포함된다.** 그래서 trigger에 `weighted_sum` 조건이 있다
 
 **6. `undo_query_decomposition`** · 회피 **−8.8 pp**
 > intent planning / 분해 / coverage reflection을 끈다.
@@ -1686,14 +1698,14 @@ True인 장만 `{available_recipes}`로 프롬프트에 노출되고, LLM이 `us
 
 - **방향이 아래인 이유**: 이 도메인에서 측정된 모든 이득이 **덜 개입하는 것**에서 나왔다.
   그래서 탈출 방향도 위가 아니라 **아래**다 — swap을 얕게, dense 가중치를 낮게
-- **트리거**: `_consec_noaccept(h) >= 2` AND swap 켜짐 AND `entity_swap_keyword_k > 15`
+- **trigger**: `_consec_noaccept(h) >= 2` AND swap 켜짐 AND `entity_swap_keyword_k > 15`
 - **제안**: `entity_swap_keyword_k/semantic_k=15`, `weight_semantic=0.2`
 - LoCoMo의 대응 레시피는 `escape_plateau_scalar_sweep`("top-k를 키워라")로 **방향이 반대**다
 
 #### 공통 가드 — `_already_rejected`
 
-8장 전부에 적용된다. 트리거는 **현재 설정만** 보는데, 엘리트주의에서 거부된 라운드는
-설정을 되돌리므로 **같은 트리거가 다시 True가 되어 같은 수를 또 제안한다**
+8장 전부에 적용된다. trigger는 **현재 설정만** 보는데, elitist에서 거부된 라운드는
+설정을 되돌리므로 **같은 trigger가 다시 True가 되어 같은 수를 또 제안한다**
 ("거부 → 되돌림 → 동일 입력 → 동일 제안" 루프). 과거 시도의 `diff`와 제안 필드가
 같은 값으로 겹치면 그 장을 제외한다.
 
@@ -1721,19 +1733,19 @@ True인 장만 `{available_recipes}`로 프롬프트에 노출되고, LLM이 `us
 
 네 데이터셋 RRF 비교(§8) 결과 **되돌리는 레시피 2장이 위험했다**. 둘 다 "−9.0 pp"·"−2.4 pp"를
 근거로 삼는데 **그 측정은 전부 `weighted_sum` 조건에서 나온 것**이고, RRF에서는 부호가 반대다.
-트리거가 fusion 모드를 보지 않아 **진화가 벌어 준 설정을 끄라고 권하는 상태**였다.
+trigger가 fusion 모드를 보지 않아 **진화가 벌어 준 설정을 끄라고 권하는 상태**였다.
 
 | # | 레시피 | 결함 | 수정 |
 |---|---|---|---|
-| 1 | `undo_structured_view` | `weight_structured` **기본값 0.5 > 0.3**이라 진화 R2 설정(`structured_top_k=10`)에서 **발동했다**. +0.0141~+0.0186을 벌어 준 view를 끄라는 제안 | 트리거에 `fusion_mode == "weighted_sum"` AND 추가 |
+| 1 | `undo_structured_view` | `weight_structured` **기본값 0.5 > 0.3**이라 진화 R2 설정(`structured_top_k=10`)에서 **발동했다**. +0.0141~+0.0186을 벌어 준 view를 끄라는 제안 | trigger에 `fusion_mode == "weighted_sum"` AND 추가 |
 | 2 | `undo_structured_view` | description이 `"none moved the metric"` | "가중합에서 −9.0 pp, **RRF에 얕게(k≤10) 넣으면 +0.002이고 네 데이터셋 최고 설정의 일부**. 여기서는 발동 금지" |
 | 3 | `entity_swap_shallow` | `proposal`에 fusion 모드가 없어 `weighted_sum`에 머문다 | `"fusion_mode": "rrf"` 추가. **swap이 네 번째 view로 들어오는 시점이 RRF로 갈아탈 시점**이라는 것이 §8의 결과. `expected_lift_pp` 1.1 → 1.4 |
 | 4 | `undo_auxiliary_overweight` | 같은 결함. `weight_structured` 기본값 때문에 **θ₀·R2 포함 모든 설정에서 발동**했다. 게다가 view가 꺼져 있어 가중치가 무의미할 때도 발동 | `fusion_mode == "weighted_sum"` AND **해당 view가 활성**(`*_top_k > 0`)을 조건에 추가 |
 
-4번은 1번을 고치고 트리거 맵을 출력해 보다가 발견했다. **기본값을 "사람이 의도한 개입"으로
+4번은 1번을 고치고 trigger 맵을 출력해 보다가 발견했다. **기본값을 "사람이 의도한 개입"으로
 읽는 것**이 두 레시피의 공통 결함이다 — `weight_structured=0.5`는 아무도 설정하지 않은 값이다.
 
-수정 후 트리거 맵(`match_recipes`를 직접 호출해 확인):
+수정 후 trigger 맵(`match_recipes`를 직접 호출해 확인):
 
 | 설정 | 발동하는 레시피 |
 |---|---|
@@ -1746,7 +1758,7 @@ True인 장만 `{available_recipes}`로 프롬프트에 노출되고, LLM이 `us
 마지막 줄이 §7에서 "미확인"이라 적었던 정체 탈출 경로다. **설정 상태로는 발동이 확인됐고**,
 LLM이 실제로 호출하는지는 7라운드를 완주해야 안다.
 
-**남은 한계** — 레시피 풀은 **벤치마크 단위**(`legal_retrieval`)이고 데이터셋 단위가 아니다.
+**남은 한계** — 레시피 pool은 **벤치마크 단위**(`legal_retrieval`)이고 데이터셋 단위가 아니다.
 그런데 §8에서 LEGAR는 swap이 해로웠다. 지금 `entity_swap_shallow`는 LEGAR에서도 발동하고
 RRF 전환까지 한다. RRF 전환은 LEGAR에서도 이득이므로 순이익이 음수는 아니지만,
 **데이터셋별 레시피 게이팅이 필요한 지점**이다.
@@ -1757,9 +1769,9 @@ RRF 전환까지 한다. RRF 전환은 LEGAR에서도 이득이므로 순이익�
 
 ### 설계에서 챙긴 두 가지
 
-**의존 관계를 트리거에 박았다.** `entity_swap_shallow`는 fusion이 켜진 뒤에만 발동한다 —
+**의존 관계를 trigger에 박았다.** `entity_swap_shallow`는 fusion이 켜진 뒤에만 발동한다 —
 `bm25_swap30`이 정확히 +0.0000이었기 때문. 레포 주석에 고lift 레시피가 전제보다 먼저 선택돼
-v9이 R2에서 0.29로 퇴행한 사례가 있어, **선언 순서와 트리거 양쪽**으로 막았다.
+v9이 R2에서 0.29로 퇴행한 사례가 있어, **선언 순서와 trigger 양쪽**으로 막았다.
 
 **중복 레버를 배타로 처리했다.** `query_rewrite_append_once`는 swap이 꺼져 있을 때만 발동한다.
 2×2 요인 분석에서 쿼리 단위 상관 **+0.524**, 같이 켜면 단독보다 나빴다(0.4109 < 0.4155).
@@ -1773,13 +1785,13 @@ RRF 비교로 고친 4건 뒤에도, 실행할 때마다 새 결함이 나왔다
 
 | # | 대상 | 결함 | 수정 |
 |---|---|---|---|
-| 5 | `entity_swap_shallow` | 트리거가 `not enable_entity_swap`이라, **LLM이 스스로 swap을 켜면** 영구히 거짓이 됐다. 측정된 깊이(30)도 RRF 전환도 전달되지 못함 | "꺼져 있나" → **"측정된 깊이에 와 있나"** |
+| 5 | `entity_swap_shallow` | trigger가 `not enable_entity_swap`이라, **LLM이 스스로 swap을 켜면** 영구히 거짓이 됐다. 측정된 깊이(30)도 RRF 전환도 전달되지 못함 | "꺼져 있나" → **"측정된 깊이에 와 있나"** |
 | 6 | 같은 카드 | 5번 수정 후 탈출 카드와 **15↔30 진동** — 탈출이 15로 낮추면 다음 라운드에 30으로 되돌림 | 임계값을 `< 15`로. 15와 30이 모두 고정점이 된다 |
 | 7 | `undo_auxiliary_overweight` | RRF에서 `weight_semantic=1.5`를 아무도 막지 못함(가드를 가중합에만 걸어 둠) | fusion 무관 **극단값(≥1.0)** 분기 추가 |
-| **8** | **`match_recipes` 공통** | 거부된 수를 **무한 반복** — 거부 → revert → 트리거 재성립 → 같은 제안 | `_already_rejected()` 가드 |
+| **8** | **`match_recipes` 공통** | 거부된 수를 **무한 반복** — 거부 → revert → trigger 재성립 → 같은 제안 | `_already_rejected()` 가드 |
 
 8번만 개별 카드가 아니라 **공통 경로**다. 1~7은 카드별 수정이라 다른 카드에서 같은 종류가
-또 나올 수 있었는데, 8번은 8장 전부에 한 번에 적용된다. 트리거 함수는 `attempt_history`를
+또 나올 수 있었는데, 8번은 8장 전부에 한 번에 적용된다. trigger 함수는 `attempt_history`를
 **이미 인자로 받고 있었는데 아무 카드도 쓰지 않았다** — `elitist` 모드가 "같은 수를 반복하지
 마라"고 LLM에게 주는 바로 그 입력에서 레시피만 규율 밖에 있었다.
 
@@ -1849,7 +1861,7 @@ view 통계 블록(§2)을 넣을 때도 같은 함정에 빠졌다. 첫 버전�
 
 ### 어느 레시피가 언제 쓰이는가 — 선택 규칙
 
-8장을 다 읽지 않아도 되도록, **무엇이 언제 노출되는가**만 한 표로 모았다. 트리거는
+8장을 다 읽지 않아도 되도록, **무엇이 언제 노출되는가**만 한 표로 모았다. trigger는
 전부 `current_config`에 대한 조건식이고(하나만 이력을 본다), **성능을 보지 않는다.**
 그래서 "지금 설정이 어떤 상태인가"로 노출 여부가 결정된다.
 
@@ -1871,8 +1883,8 @@ view 통계 블록(§2)을 넣을 때도 같은 함정에 빠졌다. 첫 버전�
 
 **제거된 카드**: `undo_query_decomposition`. 그것이 끄던 세 레버
 (`enable_intent_planning`·`enable_query_decomposition`·`enable_coverage_reflection`)가
-action space에서 빠져(§26) **트리거가 영구 거짓**이 됐고, 재측정이 네 데이터셋 전부
-정확히 +0.0000 / CI[0,0]으로 확인했다. `trigger_base()`는 카드가 **트리거가 받는
+action space에서 빠져(§26) **trigger가 영구 거짓**이 됐고, 재측정이 네 데이터셋 전부
+정확히 +0.0000 / CI[0,0]으로 확인했다. `trigger_base()`는 카드가 **trigger가 받는
 상태에서 측정되는지**는 검사하는데, 그 상태가 **도달 가능한지**는 아무도 검사하지
 않았다.
 
@@ -1889,7 +1901,7 @@ action space에서 빠져(§26) **트리거가 영구 거짓**이 됐고, 재측
 
 ### 많아지면 프롬프트가 터지지 않는가 — 실측 0~2장
 
-트리거가 상태 가드이므로, **풀이 커져도 한 라운드에 노출되는 수는 따라 커지지 않는다.**
+trigger가 상태 가드이므로, **pool이 커져도 한 라운드에 노출되는 수는 따라 커지지 않는다.**
 LeCaRDv2 클래스별 실행의 실제 라운드 설정으로 `match_recipes()`를 다시 돌려 센 값:
 
 | 라운드 상태 | 발동 수 | 어느 것 |
@@ -1901,7 +1913,7 @@ LeCaRDv2 클래스별 실행의 실제 라운드 설정으로 `match_recipes()`�
 | A8 r3 | 2 | `entity_swap_shallow`, `undo_query_decomposition` |
 | A8 r4~r6 | **0** | — |
 
-**8장 중 최대 2장**이고 0장인 라운드가 흔하다. 트리거들이 서로 배타적으로 설계된
+**8장 중 최대 2장**이고 0장인 라운드가 흔하다. trigger들이 서로 배타적으로 설계된
 결과다 — `lexical_first_light_semantic`은 fusion이 꺼진 상태에서만, `entity_swap_shallow`는
 켜진 상태에서만 열린다. 켜기 레시피가 전제를 요구하므로 **순서가 상태로 강제된다.**
 
@@ -1921,7 +1933,7 @@ LeCaRDv2 클래스별 실행의 실제 라운드 설정으로 `match_recipes()`�
 **lift로 정렬하지 않는 이유가 코드 주석에 남아 있다.** 기대 이득이 큰 장이 자신의
 전제보다 앞에 오면, 낮은 temperature의 LLM이 **순서가 틀린 수**를 고른다. LoCoMo에서
 `cat1_cat4_paraphrase_killer`(+8 pp)가 RRF(+6 pp)보다 먼저 선택돼 R2에서 0.29로
-퇴행한 기록이 그것이다. 우리 풀도 같은 구조다 — `undo_*` 4장의 기대 이득이 8~9 pp로
+퇴행한 기록이 그것이다. 우리 pool도 같은 구조다 — `undo_*` 4장의 기대 이득이 8~9 pp로
 가장 큰데, 그것들은 **해로운 설정이 켜져 있을 때만** 의미가 있다.
 
 선언 순서는 그래서 **의존 순서**다: 켜기(전제→swap→재작성) → 되돌리기 → 탈출.
@@ -1929,7 +1941,7 @@ LeCaRDv2 클래스별 실행의 실제 라운드 설정으로 `match_recipes()`�
 ### 8장으로 고정인가 — 아니다
 
 `RECIPE_POOLS`는 어댑터 이름 → 리스트인 **딕셔너리**다(`evolution_cookbook.py:644`).
-8장은 **지금 우리가 쓴 수**이고 상한이 아니다. LoCoMo 풀은 14장이다.
+8장은 **지금 우리가 쓴 수**이고 상한이 아니다. LoCoMo pool은 14장이다.
 
 늘리는 경로는 둘이다.
 
@@ -1943,7 +1955,7 @@ val에서 검증해 효과 없으면 폐기한다. **action space 고갈**(§8)�
 
 늘릴 때 지켜야 하는 것 세 가지:
 
-1. **트리거는 배타적으로** — 겹치면 한 라운드에 노출 수가 늘고, 프롬프트가 길어지는
+1. **trigger는 배타적으로** — 겹치면 한 라운드에 노출 수가 늘고, 프롬프트가 길어지는
    것보다 **LLM의 선택이 흩어지는 것**이 문제다
 2. **선언 순서는 의존 순서로** — lift 순이 아니다(위)
 3. **`proposal`의 값은 측정값으로** — LLM에게 키 이름만 보여주고 값은 코드가 넣는
@@ -1966,7 +1978,7 @@ LeCaRDv2, NDCG@30. 진화는 train에서만 돌리고 test는 최종 확인용.
 | | train (640) | **test (160)** |
 |---|---|---|
 | θ₀ (BM25 only) | 0.4040 | 0.3948 |
-| 수동 스윕 최고 (`ws_sem0.3_swap30`) | 0.4155 | 0.4057 (+0.0110) |
+| 수동 sweep 최고 (`ws_sem0.3_swap30`) | 0.4155 | 0.4057 (+0.0110) |
 | **진화 R2** (RRF + swap30 + 구조화 k=10) | **0.4184** | **0.4101 (+0.0154)** |
 
 ### 경고 — 이 비교는 순환이다 (2026-11-09)
@@ -1975,23 +1987,23 @@ LeCaRDv2, NDCG@30. 진화는 train에서만 돌리고 test는 최종 확인용.
 아니다.
 
 ```
-수동 스윕 최고          ws_sem0.3_swap30          test 0.4057
+수동 sweep 최고          ws_sem0.3_swap30          test 0.4057
 진화가 쓴 레시피 2장
   lexical_first_light_semantic -> {weighted_sum, semantic_top_k:100,
                                    weight_semantic: 0.3}
   entity_swap_shallow          -> {enable_entity_swap, k: 30, rrf}
                                                   ^^^^^^^^^^^^
-                                  = 수동 스윕 최고 설정과 같은 값
+                                  = 수동 sweep 최고 설정과 같은 값
 ```
 
-**저자가 수동 스윕의 결론을 카드로 압축해 넣었고, 루프가 그 카드를 적용했고, 그
-결과를 수동 스윕과 비교했다.** 레시피의 `description`에 박힌 *"가중치 ~0.3에서만
-도움"*, *"k=30이 +1.1 pp, k=100은 +0.4"*가 바로 그 스윕의 문장이다.
+**저자가 수동 sweep의 결론을 카드로 압축해 넣었고, 루프가 그 카드를 적용했고, 그
+결과를 수동 sweep과 비교했다.** 레시피의 `description`에 박힌 *"가중치 ~0.3에서만
+도움"*, *"k=30이 +1.1 pp, k=100은 +0.4"*가 바로 그 sweep의 문장이다.
 
 진화가 **실제로 더한 것은 `structured_top_k 0 → 10` 한 수**이고, 이긴 폭 +0.0044가
-그것이다. 나머지 +0.0110은 스윕이 이미 찾아 둔 값이 카드를 통해 되돌아온 것이다.
+그것이다. 나머지 +0.0110은 sweep이 이미 찾아 둔 값이 카드를 통해 되돌아온 것이다.
 
-그리고 위 숫자는 **test fold에서 나왔다.** 레시피 수치 자체가 test 스윕 산물이므로
+그리고 위 숫자는 **test fold에서 나왔다.** 레시피 수치 자체가 test sweep 산물이므로
 (§9, JOURNAL §24 이후), 이 표는 **누출된 사전 지식으로 test를 맞춘 기록**이다.
 
 ### 그래서 무엇을 주장할 수 있는가
@@ -2017,11 +2029,11 @@ LeCaRDv2, NDCG@30. 진화는 train에서만 돌리고 test는 최종 확인용.
 **틀린 것은 seed를 쓴 결과를 self-evolution의 성과로 적은 것이다.** 측정 설계가 B와 C를
 분리하지 않았다.
 
-이전 4회 실행은 레시피 풀이 비어 있어 전부 R1(0.4048)에서 멈췄다. 레시피를 넣자 R0에서
+이전 4회 실행은 레시피 pool이 비어 있어 전부 R1(0.4048)에서 멈췄다. 레시피를 넣자 R0에서
 `lexical_first_light_semantic`이 다섯 필드를 **변경 1칸**으로 적용하고 출발해, R1·R2에서
 두 번 연속 ACCEPT(+0.0072씩)했다. 차이는 **전제 설정을 원자적으로 넘겨받았는가**다.
 
-진화가 찾은 두 수 중 **`structured_top_k 0 → 10`만 저자의 수동 스윕이 놓친 것**이다.
+진화가 찾은 두 수 중 **`structured_top_k 0 → 10`만 저자의 수동 sweep이 놓친 것**이다.
 `weighted_sum → rrf`는 `entity_swap_shallow` 카드의 `proposal`에 이미 들어 있었으므로
 (위 "경고" 참조) 진화가 찾은 것이 아니라 **카드가 실어 온 것**이다. 처음에는 둘 다
 진화의 발견으로 적었고, 그것이 위 순환을 만든 서술이다.
@@ -2034,7 +2046,7 @@ LeCaRDv2, NDCG@30. 진화는 train에서만 돌리고 test는 최종 확인용.
   적어 두었으나 그 전제가 성립하지 않는다. `--seed`를 넣어 좁혔지만 닫지는 못한다.
   → **단일 실행의 차이를 "효과"라고 부를 수 없다.** 반복 실행으로 분산을 먼저 재야 하는데
   **아직 못 했다**(코드가 계속 바뀌어 고정 조건을 만들지 못했다). 이 때문에 레시피 수정
-  5~8번이 점수에 준 영향은 **미측정**이다 — 트리거 동작만 결정적으로 검증했다
+  5~8번이 점수에 준 영향은 **미측정**이다 — trigger 동작만 결정적으로 검증했다
 - ~~**COLIEE·LeCaRD가 R0에서 멈춘다**~~ → **원인 규명됨 (2026-10-30). §12 참조.**
   COLIEE는 진단 LLM이 매 라운드 `""`를 반환하고 있었다. 제안이 나빴던 것이 아니라
   **제안이 아예 없었다.** LeCaRD는 여전히 train 79건의 노이즈로 설명된다
@@ -2059,6 +2071,6 @@ LeCaRDv2, NDCG@30. 진화는 train에서만 돌리고 test는 최종 확인용.
 - **레시피의 "안전장치"가 한 데이터셋 측정이었다** — `undo_auxiliary_overweight`에
   "보조 가중치 ≥1.0은 위험"을 넣었는데, LEGAR 진화가 찾은 최적이 **`weight_semantic=1.5`**였다.
   근거가 전부 LeCaRDv2의 `weighted_sum` 측정이었고 RRF·다른 코퍼스에서는 반대다.
-  **레시피에 데이터셋 조건을 달거나 풀을 데이터셋별로 나눠야 한다**
+  **레시피에 데이터셋 조건을 달거나 pool을 데이터셋별로 나눠야 한다**
 
 ---
