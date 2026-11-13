@@ -23,7 +23,7 @@
 
 ---
 
-## 문서 세 개
+## 문서 셋 + 이 파일
 
 | 파일 | 무엇이 있나 |
 |---|---|
@@ -49,11 +49,19 @@
 
 ```
 쿼리 → [메타데이터 추출] → 다중 뷰 검색 → 융합 → 상위 30
-                            ├ BM25 (언어별 토크나이저: jieba / mecab / spaCy)
-                            ├ semantic (bge-m3, 디스크 선계산)
-                            ├ metadata (법조문·죄명 일치 개수)
-                            └ party-strip (당사자 이름 제거 후 재검색)
+                            ├ BM25        질의 원문        (언어별: jieba / mecab / spaCy)
+                            ├ semantic    질의 원문, 불변  (bge-m3, 디스크 선계산)
+                            ├ metadata    법조문·죄명 일치 개수
+                            └ party-strip 인명+사명+지명 제거 후 BM25 재검색
 ```
+
+**view별 후보 깊이는 전부 100이다**(측정값, `sweep.py --grid depth`). 30으로 내리면
+semantic view의 이득 대부분이 날아간다. 이 100은 반환 수 30(=NDCG@30, 지표가 고정)과
+무관한 **별개의 숫자**다 — view가 후보를 몇 건 내놓는가다.
+
+`party-strip`은 새 채점 함수가 아니라 **BM25를 변환된 질의로 다시 돌린 것**이므로,
+"네 개의 view"는 정확히는 **세 개의 채점 함수 + 질의 변환 하나**다. 삭제가 어휘적
+행위이므로 semantic view는 무엇을 켜든 질의 원문을 읽는다(`SEMANTIC_USES_ROW_TEXT`).
 
 | 파일 | 역할 |
 |---|---|
@@ -62,11 +70,16 @@
 | `legal_retriever.py` | `LegalIndex` — 토크나이저 주입, 쿼리 확장, pool 마스킹(기본 off) |
 | `legal_taxonomy.py` · `classify_queries.py` | 벤치마크 공식 체계로 쿼리 분류, **공식 train/val/test fold 주입** |
 | `build_embeddings.py` | 다국어 임베딩 선계산 |
-| `evaluate.py` · `sweep.py` | 단일 설정 평가 / 설정 비교 · 일반화 검증 |
+| `evaluate.py` · `sweep.py` | 단일 설정 평가 / 설정 비교 · 일반화 검증. `--grid {classes,fusion,weight,weight-edge,swap-depth,depth}` |
+| `verify.py` | **실행 전 단일 관문** — 조립된 프롬프트와 semantic view 입력을 함께 단정 (`verify_prompt.py` + `derived_queries.py` 통합) |
+| `measure_recipes.py` · `strip_components.py` | 카드별 lift 측정 / 삭제 목록 성분별 측정 |
+| `learn_recipes.py` · `recipe_learning.py` | **LLM이 레시피를 제안하고 train-dev가 승인** — 측정·승인 기계와 제안 프롬프트 |
 | `select_on_val.py` | 진화 라운드별 설정을 **val에서 재채점·선택** |
 | **`legal_evolve.py`** | **진화 루프를 검색 과제로** — 어댑터 · 이음매 3개 · 진단 컨텍스트 |
 | `query_rewrite.py` | LLM 쿼리 재작성 (언어별 프롬프트, 디스크 캐싱) |
 | ~~`llm_taxonomy.py`~~ | LLM 분류 실험. **중국어에서 규칙이 우월해 미채택이고, 2026-11-09에 파일을 삭제했다** — 결론은 여기 남기고 코드는 지웠다 |
+| ~~`random_arm.py`~~ | 진단 LLM 대신 무작위 교란. **논문 Table 6이 이미 쟀다(−9.63 F1)** 고 §28이 보류 → 2026-11-12 삭제 |
+| ~~`legal_recipes.py`~~ | 24장 "사다리" 풀. **24장 중 16장이 스칼라 크기를 카드에 박아** §33이 지운 전제였다 → 2026-11-12 삭제 |
 
 EvolveMem 레포는 **포크하지 않는다.** 진화 엔진이 튜닝할 로직이 그 안에 있으므로,
 법률에서 깨지는 지점만 이음매에서 교체한다. 레포 자체 수정은 최소한이며
@@ -84,12 +97,19 @@ $V classify_queries.py --all                    # 2. 분류 + 공식 fold 주입
 HF_HOME=/home/yoosun/.cache/hf \
   $V build_embeddings.py --dataset LeCaRDv2 --queries --device cuda:2   # 3. 임베딩
 
-$V evaluate.py --dataset LeCaRDv2 --out runs/LeCaRDv2_bm25_test.json    # θ₀ 확인
-$V legal_evolve.py --dataset LeCaRDv2 --split train --rounds 7 --model qwen
+$V verify.py                                    # 4. 실행 전 관문 (필수)
+$V evaluate.py --dataset LeCaRDv2 --split train --out runs/LeCaRDv2_bm25.json
+$V legal_evolve.py --dataset LeCaRDv2 --split train --rounds 7 \
+    --recipes hand --model qwen
 $V select_on_val.py --dataset LeCaRDv2 --dir evolution_official --write  # val 기준 선택
 ```
 
-7번은 진단 LLM 서버가 필요하다. 전체 명령과 vLLM 기동은 [PROGRESS.md §8](PROGRESS.md) 참고.
+> **test fold는 `in_split()`이 막는다.** `--split test`·`all`·`None`은 `ALLOW_TEST=1`
+> 없이는 `RuntimeError`다. 문장으로 막으려 했으나 실패했고(§8의 네 데이터셋 표가
+> test에서 나왔다), 이제 코드가 막는다. `evaluate.py`의 `--split` 기본값도
+> `test` → `train`으로 바꿨다.
+
+진화 루프는 진단 LLM 서버가 필요하다. 전체 명령과 vLLM 기동은 [PROGRESS.md §8](PROGRESS.md) 참고.
 
 > **서버 주의** — 우리 vLLM은 **GPU 1 / 포트 8000**이다. **포트 8002는 다른 사용자의 서버**이므로
 > 요청을 보내지 말 것. 정리할 때 `pkill -f "vllm serve"`는 남의 프로세스까지 잡으므로 PID를 지정한다.
@@ -128,17 +148,37 @@ LeCaRD val은 **8건**이라 선택 기준으로 쓰지 않는다.
 
 ## 지금까지 밝혀진 것 (요약)
 
-1. **최소 개입만 작동한다.** BM25에 구조화 신호를 더하는 5가지 방식은 전부 0 또는 음수,
-   쿼리를 대체하면 −0.170, 인명만 지우거나 재작성을 한 번 덧붙이면 +0.011~0.013.
+아래는 **train fold** 수치다. 괄호 안은 그 데이터셋의 **noise floor**(측정된, 구분 가능한
+최소 Δ)이고, floor를 못 넘는 숫자는 "1위처럼 보이는 자리"까지만 말한다.
+
+1. **최소 개입만 작동한다.** θ₀은 BM25 단독이고, 8가지 view 조합 중 **BM25+semantic 둘만**
+   켜는 것이 네 데이터셋 전부에서 1위다 (LeCaRDv2 +0.0140 / LeCaRD +0.0134 /
+   COLIEE +0.0041 / LEGAR +0.0062). metadata view는 네 데이터셋 **전부 음수**다.
    판례는 모든 정보가 본문에 있어 메타데이터가 BM25와 중복된다 — 논문의 multi-view 전제가
    이 도메인에서 성립하지 않는다.
-2. **단, 융합 방식이 그 그림을 바꾼다.** 위 결론은 `weighted_sum` 조건에서만 성립한다.
-   RRF로 바꾸고 뷰를 얕게 넣으면 부호가 뒤집힌다. **이 수정은 진화 엔진이 사람의 결론을
-   교정한 사례**다.
-3. **최적 설정은 데이터셋마다 다르다.** 네 데이터셋 비교에서 LEGAR만 swap 대신 semantic이
-   이긴다. 전역 기본값을 박는 대신 **데이터셋별로 엔진이 찾게 하는 것**이 이 프레임워크의 값이다.
+2. **COLIEE와 LeCaRD에서는 "어떤 view를 켤지"가 측정 불가다.** floor가 각각 0.0052 /
+   0.0240이고 어느 설정도 넘지 못한다. LeCaRD는 train 79건이라 원리적 한계다(원데이터).
+   거기서 루프가 무엇을 찾아도 성과로 읽을 수 없다.
+3. **최적 설정은 데이터셋마다 다르다.** `weight_semantic` 최적값만 0.1~2.0으로 **20배**
+   벌어진다. 전역 기본값을 박는 대신 **데이터셋별로 엔진이 찾게 하는 것**이 이
+   프레임워크의 값이다. 격자는 채점용 정답지일 뿐이다.
+4. **이득의 귀속.** 사람이 내린 tier ① 결정 하나(색인 절 + 임베딩 길이)가 COLIEE θ₀를
+   **+31%**, LEGAR를 **+42%** 올렸다. 루프가 찾은 최대는 **+1.9%**다. 한 자리 차이이고,
+   효과가 가장 큰 축(문서 변환)이 사람 손에 있다 — 이 연구의 가장 약한 지점이고 그대로
+   보고한다.
+5. **벤치마크가 과제 정의와 어긋나는 지점을 쟀다.** 정답 문서가 쿼리의 당사자명을
+   **+16pp**, 지명을 **+51pp** 더 공유한다. 같은 구에서 난 두 사건은 유사 사건이 아닌데
+   지표는 그것을 보상한다. 그래서 `STRIP_SCOPE` 기본값을 점수가 아니라 **과제 정의**에
+   맞춰 인명+사명+지명으로 두고, 두 숫자를 함께 보고한다.
+6. **레시피라는 장치가 비어 있다.** 손으로 쓴 5장 중 **4장이 action space 필드 하나짜리**
+   제안으로, 진단 LLM이 카드 없이 직접 쓸 수 있다. 행동 공간이 작고(12개) 필드가 대체로
+   독립적이면 레시피의 역할이 없다 — 그래서 **LLM이 직접 제안하는 쪽**(`learn_recipes.py`)
+   으로 간다. 묶음이라는 장치 자체는 `per_category_overrides`로 action space 안에 이미
+   있고, 그쪽이 실제로 더 많이 움직였다(val +0.0079 대 전역 +0.0012).
 
-근거와 반례는 [METHODOLOGY.md §8](METHODOLOGY.md)에 있다.
+근거와 반례는 [METHODOLOGY.md §8](METHODOLOGY.md)에 있다. **단 §8의 네 데이터셋 표는
+test fold 산물이므로 교체 대기 중이다** — 그 표의 결론("⑤가 1위")은 train에서 부호가
+뒤집힌다(⑤는 전부 최하위권).
 
 ## 결과를 읽기 전에 (중요)
 
