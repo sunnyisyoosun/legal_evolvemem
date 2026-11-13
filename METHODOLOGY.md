@@ -68,7 +68,7 @@ QA인데, 우리는 그 loop만 떼어 와서 검색 설정을 스스로 고치�
 | view | 무엇으로 찾나 | 설정 필드 |
 |---|---|---|
 | **BM25** | 어휘 일치 (jieba / mecab / spaCy 토크나이저) | `keyword_top_k`, `weight_keyword` |
-| **dense** | bge-m3 임베딩 유사도 | `semantic_top_k`, `weight_semantic` |
+| **semantic** | bge-m3 임베딩 유사도 | `semantic_top_k`, `weight_semantic` |
 | **metadata** | 질의와 문서가 인용한 **법조문의 겹침** | `structured_top_k`, `weight_structured` |
 | **party-strip** | 질의에서 **당사자 이름을 지우고** 다시 검색 | `enable_entity_swap`, `entity_swap_keyword_k` |
 
@@ -112,13 +112,13 @@ LLM self-evolution engine은 **검증 대상이 아니라 전제**다. 보여야
 |---|---|---|
 | θ₀ | BM25 단독. 이 도메인의 이득은 거의 전부 **"덜 개입하기"**에서 나왔다 | §8 |
 | fusion | **실질적으로 무관하다.** rrf와 weighted_sum이 동점 수준(LeCaRDv2 0.4025/0.4002) — 차이를 만드는 것은 semantic view를 켜는가 하나다 | §8, JOURNAL §27 |
-| dense view | **유일하게 일관된 양수 레버**(네 데이터셋 전부). 최적 가중치는 **0.1~2.0으로 20배** 벌어지고, θ₀ 기본값 1.0에서 켜면 LeCaRD −0.1067. 옛 "0.3에서만"은 **임베딩 512 잘림의 산물**이었다 | §8, JOURNAL §27·§28 |
+| semantic view | **유일하게 일관된 양수 레버**(네 데이터셋 전부). 최적 가중치는 **0.1~2.0으로 20배** 벌어지고, θ₀ 기본값 1.0에서 켜면 LeCaRD −0.1067. 옛 "0.3에서만"은 **임베딩 512 잘림의 산물**이었다 | §8, JOURNAL §27·§28 |
 | 메타데이터 view | 무효가 아니라 **해롭다** — 네 데이터셋 train 전부 음수. 끄는 카드가 세 데이터셋에서 통과(+0.28~+0.74) | §8 |
 | party-strip view | **죽었다.** 최대 +0.0004, LeCaRD −0.0349. 옛 최고 설정 ⑤가 이제 꼴찌다. (삭제 대상은 여전히 인명만 — 넓히면 세 언어 모두 음수) | §8, JOURNAL §16 |
 | 쿼리의 이름·지명 | **지우면 손해이거나 무효다. 양수인 곳이 없다.** 당사자명 삭제: LeCaRD −0.0457 / LeCaRDv2 −0.0032 / COLIEE −0.0003 / LEGAR +0.0002. **지명이 단독 최대 원인** (LeCaRDv2 −0.0136) — 정규식 결함을 고쳐도 그대로이고, 정답 문서가 쿼리의 지명을 **+51 pp** 더 공유한다. 개념적으로 지워야 할 신호를 벤치마크가 보상한다. 그리고 party-strip view는 이 오염을 치우지 않는다 — 주 BM25는 원문을 계속 읽는다 | §4, JOURNAL §41 |
 | **지표의 의미** | **NDCG@30이 넷에서 다른 과제를 잰다.** 쿼리당 정답 수 중앙값 LeCaRD 29 / LeCaRDv2 **30** / COLIEE 3 / LEGAR **1** — 30배 차이. LeCaRDv2는 60%의 쿼리에서 만점 = precision@30 1.0(ordering 과제), LEGAR는 사실상 MRR. 모든 표가 네 Δ를 나란히 놓고 읽어 왔다 — **결정 필요** | JOURNAL §42 |
-| **dense view의 조용한 소실** | 질의 벡터가 **질의 텍스트를 키로** 미리 계산돼 있어, 텍스트가 바뀌면 `semantic_search`가 빈 결과를 돌려준다. `enable_query_rewrite`는 주 경로를, party-strip은 자기 dense 절반을 **전부** 끈다(40/40, 182/182). 그래서 rewrite 카드의 +0.0088은 묶음이고, `entity_swap_semantic_k`의 "무효"는 구조적 원인이다. 지금은 명명·계수하고 프롬프트에 찍는다 — **파생 질의 벡터 선계산이 남았다** | JOURNAL §43 |
-| **dense view의 입력** | **행의 원문 질의로 고정**(`DENSE_USES_ROW_TEXT`). 변환은 BM25에만 — 두 레버의 존재 이유가 어휘적이고, dense에는 **끄는 효과만** 있었다. 선계산 0으로 dense가 온전해지고, rewrite 레버가 **+0.0088 → +0.0161**(숨은 묶음이 사라짐). swap의 dense 절반은 중복 기여를 막으려 0 고정 = **은퇴** | JOURNAL §44 |
+| **semantic view의 조용한 소실** | 질의 벡터가 **질의 텍스트를 키로** 미리 계산돼 있어, 텍스트가 바뀌면 `semantic_search`가 빈 결과를 돌려준다. `enable_query_rewrite`는 주 경로를, party-strip은 자기 semantic 절반을 **전부** 끈다(40/40, 182/182). 그래서 rewrite 카드의 +0.0088은 묶음이고, `entity_swap_semantic_k`의 "무효"는 구조적 원인이다. 지금은 명명·계수하고 프롬프트에 찍는다 — **파생 질의 벡터 선계산이 남았다** | JOURNAL §43 |
+| **semantic view의 입력** | **행의 원문 질의로 고정**(`SEMANTIC_USES_ROW_TEXT`). 변환은 BM25에만 — 두 레버의 존재 이유가 어휘적이고, semantic에는 **끄는 효과만** 있었다. 선계산 0으로 semantic이 온전해진다. swap의 semantic 절반은 중복 기여를 막으려 0 고정 = **은퇴**. **단 §44의 "rewrite가 +0.0161"은 기각됐다** — 그 측정은 카드 트리거 기반이 아닌 임의 120건이었고, 트리거 기반 재측정은 **+0.0009 CI[-0.0021,+0.0037]**(noise floor 0.0050 미달). D가 semantic을 원문에 고정하므로 rewrite는 BM25에만 닿고, 거기서는 0과 구분되지 않는다 — **D와 rewrite는 같은 통로를 다툰다** | JOURNAL §44·§46 |
 | **결정의 세 층** | ① **view의 정의**(사람+측정, `RetrievalConfig` 밖) / ② **설정** 12필드(LLM, 라운드당 2칸) / ③ **recipe**(구조는 사람, 크기·시점은 LLM). ①을 열면 데이터셋마다 **다른 시스템**이 되어 비교 전제가 깨진다. `per_category_overrides` 우회로도 같은 필터로 막혀 있다(실측) | §0.3 |
 | **논문과의 이탈** | Eq. 1의 **recency 가산항이 구현에 아예 없었고**(그래서 rrf에서 `time_decay`가 무효였다 — 구현이 논문과 달랐던 것), 갱신 규칙이 논문 Eq. 4보다 **엄격**했다(최고 대비 vs 이전 대비, 평평한 라운드를 되돌림 vs 유지). 둘 다 선택지로 추가 — `recency_weight`(기본 0.0) · `--update-rule {elitist,paper}` | JOURNAL §45 |
 | **이득의 귀속** | 사람이 내린 ① 결정 하나(색인 절 + 임베딩 길이)가 COLIEE θ₀를 **+31%**, LEGAR를 **+42%** 올렸다. 루프가 찾은 최대는 LeCaRDv2 val **+1.9%**. **한 자리 차이다.** 올바른 주장은 "루프가 ① 고정 아래에서 ②를 진화시킨다"이고, 분모를 함께 적어야 한다 | §10.0, JOURNAL §26 |
@@ -148,6 +148,8 @@ LLM self-evolution engine은 **검증 대상이 아니라 전제**다. 보여야
 | 카테고리 라벨 | 분해 블록은 `per_category_overrides` 키(정수)만, 실패 요약은 장 이름만 쓰고 있었다 — **같은 분류를 두 블록이 다르게 라벨링**. 이제 `[1] 제17장 성범죄` 형태로 둘 다 | JOURNAL §30 |
 | 실패 요약 | 엔진의 요약은 `prediction`을 산문으로 읽는다. 우리 것은 문서 ID 목록이라 abstention은 **항상 0**, wrong은 zero의 복사본, "의역 증상"은 **상시 발화**였다. 재현율 문제/순서 문제로 교체 | JOURNAL §30 |
 | 진단 실패 라운드 | 휴리스틱 대체 경로가 진단이 죽은 라운드에도 `max_context`(action space 밖)를 제안하고 있었다 → **껐다**. 제안이 없는 라운드는 아무것도 바꾸지 않는다 | JOURNAL §30 |
+| **`enable_chapter_filter`** | **θ₀ 기본값이 틀렸다.** 되돌리는 카드가 네 데이터셋 **전부** 양수이고 가장 크다 — COLIEE +0.0619 / LeCaRD +0.1356 / LeCaRDv2 +0.0450 (train, CI 전부 0 제외). 레시피로 되돌릴 일이 아니라 **tier ① 기본값을 바꿀 일**이고, 바꾸면 §8 이후 모든 Δ의 기준선이 움직인다 — **미결** | JOURNAL §46 |
+| **레시피라는 장치** | 5장 중 **4장이 action space 필드 하나짜리** 제안이다 — 진단 LLM이 카드 없이 직접 쓸 수 있다. §33이 "스칼라 크기뿐인 카드"를 지운 기준이 **불리언 필드 하나짜리에도 똑같이 걸리는데** 기준을 '스칼라'로 좁게 적어 안 지웠다. 유일한 2필드 묶음(`lexical_first_light_semantic`)은 부호가 데이터셋마다 뒤집힌다(LEGAR +0.0101 / LeCaRD −0.1068). **행동 공간이 12개로 작고 필드가 독립적이면 레시피의 역할이 없다** — 논문 대비 발견 후보. **미결** | JOURNAL §46 |
 | test fold | **아직 측정하지 않았다.** 마지막 단계 | §5 |
 
 
@@ -184,7 +186,7 @@ METHODOLOGY, [JOURNAL](JOURNAL.md), [PROGRESS](PROGRESS.md). 억지로 옮기면
 | **θ₀** | 비교 기준이 되는 출발 설정. **BM25 단독**(`fusion_mode="keyword_only"`, 보조 view 전부 off). 코드상 `evaluate.weak_config()`이고 evolution loop의 R0이다 |
 | **lever** | 성능을 움직이는 설정 하나 또는 한 bundle. 측정 단위. "11개 lever를 측정했다" = 11가지 조작을 각각 켜 보고 Δ를 쟀다 |
 | **action space** | evolution engine이 바꿀 수 있는 필드 전체. `RetrievalConfig`는 45필드지만 **순위를 실제로 바꾸는 것은 12개**이고 나머지는 제안 대상에서 제외했다. 데이터셋에 따라 11개로 더 줄어든다 — §3, JOURNAL §26·§37 |
-| **view** | 후보를 뽑는 방식 하나. BM25 / dense / metadata / party-strip 넷 |
+| **view** | 후보를 뽑는 방식 하나. BM25 / semantic / metadata / party-strip 넷 |
 | **fusion** | view의 결과를 하나의 순위로 합치는 방식. `first_found` / `weighted_sum` / `rrf`(k=60) / `*_only` |
 | **recipe (= card)** | `Recipe` 인스턴스 1개. **(증상 → trigger → 함께 움직여야 하는 필드들)**. action space의 필드 여러 개를 **step cap 1칸**으로 묶는 단축키이지 별도의 action space이 아니다. **크기(가중치·깊이)는 담지 않는다** — LLM이 고른다 → §9 |
 | **recipe pool** | 어댑터별 recipe 목록. `RECIPE_POOLS["legal_retrieval"]`. 현재 **5장**이고, rewrite 캐시가 없는 데이터셋에서는 **4장**으로 줄어든다 — JOURNAL §33·§37 |
@@ -255,10 +257,10 @@ retrieval **정책**이고 아키텍처가 아니다.
 | 결정 | 현재 값 | 왜 닫혀 있나 | 열면 |
 |---|---|---|---|
 | **색인하는 판결문 절** | `Fact`+`Reason`+`Result` | 비교 가능성뿐이다. **측정값은 열라고 말한다** — 상대 +26%/+62% | 라운드당 레버는 불가(코퍼스·임베딩 재생성). **데이터셋당 한 번 고르는 외곽 축**은 가능. 비용 = 절 조합 × 재임베딩(≈57분) |
-| **dense view의 입력** | 행의 원문 질의 | 열면 **묶음**이 된다 — 끄면 `enable_query_rewrite`가 dense view를 함께 끈다(§43). 그리고 데이터셋마다 다르면 다른 시스템이 된다 | 선계산 800건(LeCaRDv2 rewrite)으로 **한 질문만** 측정 가능 — JOURNAL §44 |
+| **semantic view의 입력** | 행의 원문 질의 | 열면 **묶음**이 된다 — 끄면 `enable_query_rewrite`가 semantic view를 함께 끈다(§43). 그리고 데이터셋마다 다르면 다른 시스템이 된다 | 선계산 800건(LeCaRDv2 rewrite)으로 **한 질문만** 측정 가능 — JOURNAL §44 |
 | **삭제 대상의 추출 출처** | 행의 원문 질의 | 재작성본에서 뽑으면 절 조각이 섞인다(300건 중 37건) | 수리이므로 되돌릴 이유가 없다 |
 | **party-strip의 삭제 범위** | 당사자명만 | §16: 클래스마다 다른 범위를 쓰면 **클래스 간 숫자가 비교 불가**. train 2/2 음수 | 환경변수 하나(`STRIP_INCIDENTALS=1`), 데이터셋당 한 패스 |
-| **party-strip의 dense 절반** | 끔 | 켜면 주 dense view와 **같은 ranking을 두 번** 센다(§44) | dense 입력을 열어야 비로소 의미가 생긴다 |
+| **party-strip의 semantic 절반** | 끔 | 켜면 주 semantic view와 **같은 ranking을 두 번** 센다(§44) | semantic 입력을 열어야 비로소 의미가 생긴다 |
 | 임베딩 길이 | 8192 | 512는 **결정이 아니라 잔존물**이었다(§27). 8192가 모델의 한도 | 이미 올렸다 |
 | **최신성(날짜)** | **쓰지 않는다** (`recency_weight=0.0`) | **관련성 신호가 아니다.** 라벨은 두 사건이 **닮았는가**를 말하고, 판결문은 최근이라고 더 닮지 않는다. 논문이 최신성을 쓰는 이유는 LoCoMo가 **시간 순서가 있는 대화**에 시간 질문을 하기 때문이고, 우리 질의는 사실관계를 닮은 선례를 묻는다 | 구현은 돼 있다(§45). 실무용 목적함수(개정법으로 폐기된 선례 등)는 **다른 과제**이고, 그때는 레버와 척도가 준비돼 있다 |
 
@@ -277,8 +279,8 @@ C의 첫 줄이 당신 지적의 핵심이다. **`DOC_FIELD_OF`는 수리도 틀
 "데이터셋마다 다른 값에 도달했다"가 **설정의 차이인지 시스템의 차이인지** 구분되지
 않는다.
 
-그리고 ①의 일부는 **묶음**이다 — `DENSE_USES_ROW_TEXT`를 끄면 `enable_query_rewrite`를
-켜는 것이 dense view를 **함께 끄는** 일이 된다(JOURNAL §43). 설정으로 열면 LLM이
+그리고 ①의 일부는 **묶음**이다 — `SEMANTIC_USES_ROW_TEXT`를 끄면 `enable_query_rewrite`를
+켜는 것이 semantic view를 **함께 끄는** 일이 된다(JOURNAL §43). 설정으로 열면 LLM이
 자기가 호출하지 않은 변경을 겪는다.
 
 #### 우회로도 막혀 있다
@@ -364,6 +366,7 @@ EvolveMem은 **대화 메모리** 어휘로 쓰여 있다(`persons`, `entities`,
 | `legal_refs` | `entities` | 법조문 인용 + 죄명 + `art:NNN` | 대화 메모리의 "엔티티"는 화자가 언급한 주제다. 우리 것은 법률 참조다 |
 | `cases` / `corpus/` | `memories` | 판례 1건 = 검색 단위 | §3.1(LLM 추출)을 버렸으므로 우리 것은 가공된 "메모리"가 아니라 **판결문 원문**이다 |
 | **metadata view** | structured view | `legal_refs` 일치 **개수**로 점수 | — |
+| **semantic view** | semantic view | bge-m3 벡터의 cosine similarity | **이름은 엔진 것을 그대로 쓴다.** 검색 문헌의 표준 용어는 `dense`(sparse BM25의 반대말)이고 이 문서도 한동안 두 이름을 섞어 썼지만, 바꿀 수 없는 쪽이 `semantic_top_k`·`weight_semantic`이다 — 그것이 action space이고 **진단 LLM이 그 이름으로 제안한다.** 문서가 다른 단어를 쓰면 문서와 LLM이 어긋난다. 우리가 지은 식별자도 맞췄다: `SEMANTIC_USES_ROW_TEXT`·`semantic_query` |
 | **party-strip view** | entity-swap view | 쿼리에서 `parties`를 **지우고** 재검색 | "엔티티를 교체"로 읽히지만 실제로는 삭제 후 재검색이다 |
 
 **설정 필드 이름은 엔진 것을 그대로 쓴다.** 그것이 진화 엔진의 action space 자체이고,
@@ -371,6 +374,7 @@ EvolveMem은 **대화 메모리** 어휘로 쓰여 있다(`persons`, `entities`,
 
 | 필드 | 어느 view |
 |---|---|
+| `semantic_top_k`, `weight_semantic` | **semantic view** |
 | `structured_top_k`, `weight_structured` | **metadata view** |
 | `enable_entity_swap`, `entity_swap_semantic_k`, `entity_swap_keyword_k` | **party-strip view** |
 
@@ -1260,7 +1264,7 @@ train 조건을 같이 거는 이유는 val이 작기 때문이다 — 한두 �
 val만 보면 운 좋은 라운드를 고르게 된다. 두 기준의 결과를 `best_config.json`(train)과
 `best_config_val.json`(val)으로 **나란히 남겨** 갈리는지 본다.
 - 네 데이터셋 **동일 전처리**(`Fact`+`Reason`+`Result`를 색인, 세 필드 보유 문서만).
-  2026-11-10에 `Fact`만 색인하던 것을 세 필드 전부로 바꿨다(`DOC_FIELD_OF = "all"`). **메타데이터 추출(`legal_refs`·`parties`)은 처음부터 세 필드 전부를 훑었으므로** (`build_cases.py:82`, `--meta-fields` 기본값) 이 변경으로 추출 결과는 달라지지 않았다 — 달라진 것은 BM25·dense가 읽는 본문뿐이다. 바꾸기 전에는 **메타데이터 view가 BM25가 볼 수 없는 `Reason`·`Result`의 조문까지 매칭**하는 비대칭이 있었고, 지금은 사라졌다.
+  2026-11-10에 `Fact`만 색인하던 것을 세 필드 전부로 바꿨다(`DOC_FIELD_OF = "all"`). **메타데이터 추출(`legal_refs`·`parties`)은 처음부터 세 필드 전부를 훑었으므로** (`build_cases.py:82`, `--meta-fields` 기본값) 이 변경으로 추출 결과는 달라지지 않았다 — 달라진 것은 BM25·semantic이 읽는 본문뿐이다. 바꾸기 전에는 **메타데이터 view가 BM25가 볼 수 없는 `Reason`·`Result`의 조문까지 매칭**하는 비대칭이 있었고, 지금은 사라졌다.
   데이터셋마다 입력 텍스트가 다르면 프레임워크 비교가 교란된다.
 - **pool 마스킹을 쓰지 않는다**(2026-10-29 결정). LeCaRD의 공식 과제는 쿼리당 후보 100개
   재랭킹이지만 나머지 셋은 전체 코퍼스 검색이다. 한쪽만 pool을 쓰면 **서로 다른 과제의 숫자를
@@ -1486,14 +1490,14 @@ if meta_plan.new_dimension_proposal:                              # 파일에 �
 >
 > | | 이 절의 결론 | 새 코퍼스 (val) |
 > |---|---|---|
-> | dense view | "BM25에 크게 못 미침(0.28 vs 0.40), 가중치 0.3에서만" | **최대 레버.** ② RRF+semantic이 LeCaRDv2 +0.0165로 1위 |
+> | semantic view | "BM25에 크게 못 미침(0.28 vs 0.40), 가중치 0.3에서만" | **최대 레버.** ② RRF+semantic이 LeCaRDv2 +0.0165로 1위 |
 > | ⑤ RRF+swap30+str10 | 네 데이터셋 중 셋에서 1위 | LeCaRDv2 **−0.0129**, LEGAR −0.0036 |
 > | 구조화 view | "거의 무효" (단독 +0.0006) | 단독 **음수** (−0.0098 / −0.0090) |
 > | fusion | "view가 넷이면 RRF > weighted_sum" | ⑦ `weighted_sum`이 넷 중 둘에서 1위 (LeCaRD **+0.0588**) |
 >
-> dense view 결론이 뒤집힌 이유는 JOURNAL §27에 있다 — **512는 결정이 아니라
+> semantic view 결론이 뒤집힌 이유는 JOURNAL §27에 있다 — **512는 결정이 아니라
 > 모델 비교용으로 묶어 둔 값의 잔존물**이었고, BM25가 판결문 전체를 읽는 동안
-> dense view는 COLIEE의 17%만 읽고 있었다. 즉 이 절은 dense 검색을 측정한 것이
+> semantic view는 COLIEE의 17%만 읽고 있었다. 즉 이 절은 semantic 검색을 측정한 것이
 > 아니라 **그 설정을 측정한 것**이다.
 >
 > 이득의 **크기 자체도 작아졌다** (LEGAR 최대 +0.0238 → +0.0028,
@@ -1523,7 +1527,7 @@ if meta_plan.new_dimension_proposal:                              # 파일에 �
 | ⑥ RRF+swap30 | +0.0001 | −0.0347 | −0.0005 | +0.0004 |
 | ⑦ ws_sem0.3+swap30 | +0.0117 | −0.0113 | +0.0013 | +0.0063 |
 
-**`weight_semantic`** (rrf + dense만, 다른 view off). ◀ = 그 데이터셋의 최적.
+**`weight_semantic`** (rrf + semantic만, 다른 view off). ◀ = 그 데이터셋의 최적.
 
 | w_sem | LeCaRDv2 | LeCaRD | COLIEE | LEGAR |
 |---|---|---|---|---|
@@ -1539,7 +1543,7 @@ if meta_plan.new_dimension_proposal:                              # 파일에 �
 
 **지금 말할 수 있는 것 넷.**
 
-1. **dense view를 켜는 것이 유일하게 일관된 양수 레버다** — ②가 네 데이터셋 전부 양수.
+1. **semantic view를 켜는 것이 유일하게 일관된 양수 레버다** — ②가 네 데이터셋 전부 양수.
    옛 코퍼스에서 ②는 중국어 둘에서 음수(−0.0101 / −0.1072)였다.
 2. **구조화 view는 네 데이터셋 전부 음수다.** "거의 무효"가 아니라 해롭다.
 3. **swap view는 죽었다** (최대 +0.0004, LeCaRD −0.0349). 옛 최고 설정 ⑤가 꼴찌다.
@@ -1548,8 +1552,8 @@ if meta_plan.new_dimension_proposal:                              # 파일에 �
 
 그리고 **값 하나가 축 전체를 결정한다**: LeCaRD는 `weight_semantic`만 맞추면
 +0.0209로, fusion 7설정 grid의 최고치(+0.0134)를 넘는다. 최적값은 데이터셋마다
-0.1~2.0으로 **20배** 벌어지고, θ₀의 기본값 1.0에서 dense를 켜면 LeCaRD가 **−0.1067**이다
-— 그래서 (fusion + dense 켜기 + 가중치)는 분리 불가능한 삼중이고, 카드가 가중치를
+0.1~2.0으로 **20배** 벌어지고, θ₀의 기본값 1.0에서 semantic을 켜면 LeCaRD가 **−0.1067**이다
+— 그래서 (fusion + semantic 켜기 + 가중치)는 분리 불가능한 삼중이고, 카드가 가중치를
 박아 두면 어느 데이터셋에서는 반드시 손해다.
 
 ---
@@ -1647,7 +1651,7 @@ semantic을 크게 끌어올렸는데(문서 8,383자), LeCaRD(5,608자)에서�
 
 남는 설명은 **코퍼스 구성**이다. LeCaRD 코퍼스는 107개 쿼리의 공식 후보 pool 100건씩의
 **합집합과 정확히 일치**한다. 즉 모든 문서가 어떤 쿼리의 "그럴듯한 후보"로 이미 선별된 것이라
-의미적으로 서로 매우 유사하고, dense 검색이 변별력을 잃는다. BM25의 정확한 어휘 일치만이
+의미적으로 서로 매우 유사하고, semantic 검색이 변별력을 잃는다. BM25의 정확한 어휘 일치만이
 구분해 낸다. LeCaRDv2·COLIEE·LEGAR는 그런 선별을 거치지 않은 일반 코퍼스다.
 
 → 부작용으로 **임베딩 설정이 데이터셋마다 다르다**(COLIEE·LeCaRD 2048, LeCaRDv2·LEGAR 512).
@@ -1700,7 +1704,7 @@ semantic을 크게 끌어올렸는데(문서 8,383자), LeCaRD(5,608자)에서�
 > LEGAR_stricter에는 **반대 방향**을 가리켰다. 네 trigger는 값도 방향도 없는
 > 프롬프트 텍스트(`state_notes`)로 옮겼다. → JOURNAL §33
 >
-> 현재 5장: `lexical_first_light_semantic`(fusion + dense view를 함께 켠다) ·
+> 현재 5장: `lexical_first_light_semantic`(fusion + semantic view를 함께 켠다) ·
 > `entity_swap_shallow` · `query_rewrite_append_once`(LeCaRDv2 전용) ·
 > `undo_structured_view` · `undo_chapter_filter`.
 
@@ -1739,7 +1743,7 @@ semantic을 크게 끌어올렸는데(문서 8,383자), LeCaRD(5,608자)에서�
 Recipe(
     name="lexical_first_light_semantic",
     description=(
-        "Foundation. Keep BM25 dominant and blend the dense view in at a "
+        "Foundation. Keep BM25 dominant and blend the semantic view in at a "
         "low weight. Semantic alone scores far below BM25 on case law "
         "(0.28 vs 0.40); it only helps at weight ~0.3, and degrades "
         "monotonically above it. Required before entity-swap, which does "
@@ -1791,7 +1795,7 @@ for r in pool:
 
 ```
 • `lexical_first_light_semantic` (expected +0.1 pp)
-    Foundation. Keep BM25 dominant and blend the dense view in at a low weight. ...
+    Foundation. Keep BM25 dominant and blend the semantic view in at a low weight. ...
     Fields set: fusion_mode, semantic_top_k, keyword_top_k, weight_keyword, weight_semantic
 ```
 
@@ -1850,7 +1854,7 @@ True인 장만 `{available_recipes}`로 프롬프트에 노출되고, LLM이 `us
 #### A. 켜는 레시피 — 선언 순서가 의존 순서다
 
 **1. `lexical_first_light_semantic`** · 기대 +0.1 pp · **전제**
-> BM25를 주력으로 두고 dense를 낮은 가중치로 섞는다.
+> BM25를 주력으로 두고 semantic을 낮은 가중치로 섞는다.
 
 - **왜**: semantic 단독은 판례에서 BM25에 크게 못 미친다(0.28 vs 0.40). 가중치 ~0.3에서만
   도움이 되고 그 위로는 단조 감소한다
@@ -1927,7 +1931,7 @@ True인 장만 `{available_recipes}`로 프롬프트에 노출되고, LLM이 `us
 > 2라운드 이상 정체 + swap이 이미 켜진 상태.
 
 - **방향이 아래인 이유**: 이 도메인에서 측정된 모든 이득이 **덜 개입하는 것**에서 나왔다.
-  그래서 탈출 방향도 위가 아니라 **아래**다 — swap을 얕게, dense 가중치를 낮게
+  그래서 탈출 방향도 위가 아니라 **아래**다 — swap을 얕게, semantic 가중치를 낮게
 - **trigger**: `_consec_noaccept(h) >= 2` AND swap 켜짐 AND `entity_swap_keyword_k > 15`
 - **제안**: `entity_swap_keyword_k/semantic_k=15`, `weight_semantic=0.2`
 - LoCoMo의 대응 레시피는 `escape_plateau_scalar_sweep`("top-k를 키워라")로 **방향이 반대**다
@@ -2101,11 +2105,11 @@ view 통계 블록(§2)을 넣을 때도 같은 함정에 빠졌다. 첫 버전�
 
 | 지금 설정 상태 | 노출되는 레시피 | 메커니즘 |
 |---|---|---|
-| fusion 꺼짐(`keyword_only`) 또는 `semantic_top_k==0` | `lexical_first_light_semantic` | **전제** (fusion+dense 켜기) |
+| fusion 꺼짐(`keyword_only`) 또는 `semantic_top_k==0` | `lexical_first_light_semantic` | **전제** (fusion+semantic 켜기) |
 | fusion 켜짐 + swap 꺼짐 | `entity_swap_shallow` | swap 켜기 |
 | fusion 켜짐 + swap 켜짐 + `k<15` | `swap_depth_shallow` | swap 깊이 |
 | fusion 켜짐 + swap 꺼짐 + 재작성 꺼짐 | `query_rewrite_append_once` | 재작성 |
-| `weighted_sum` + dense 켜짐 + `weight_semantic>0.5` | `undo_semantic_overweight` | dense 가중치 |
+| `weighted_sum` + semantic 켜짐 + `weight_semantic>0.5` | `undo_semantic_overweight` | semantic 가중치 |
 | `weighted_sum` + 메타 켜짐 + `weight_structured>0.3` | `undo_structured_overweight` | 메타 가중치 |
 | `structured_top_k>0` + 가중치>0.3 | `undo_structured_view` | 메타 켜기 |
 | `enable_chapter_filter` 켜짐 | `undo_chapter_filter` | 장 필터 |
@@ -2121,7 +2125,7 @@ action space에서 빠져(§26) **trigger가 영구 거짓**이 됐고, 재측�
 **분할된 카드**: `undo_auxiliary_overweight` → `undo_semantic_overweight` +
 `undo_structured_overweight`. 서로 다른 두 view의 가중치를 한 장이 건드려 어느 쪽이
 벌었는지 말할 수 없었고, 측정은 둘을 반대편에 놓는다 — 메타 view를 끄는 것은 세
-데이터셋에서 이득(+0.55/+0.74)이고 dense 가중치를 내리는 것은 LEGAR에서 **손실**
+데이터셋에서 이득(+0.55/+0.74)이고 semantic 가중치를 내리는 것은 LEGAR에서 **손실**
 (−0.0033, CI 전체 음수)이다.
 
 **카드가 더 이상 갖지 않는 것: 크기.** `weight_semantic`·swap 깊이 같은 값은 LLM이
