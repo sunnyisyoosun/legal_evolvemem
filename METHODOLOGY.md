@@ -1055,7 +1055,10 @@ weight_semantic  = 0.3                # ← 제거됨 (크기는 LLM이 고른�
 
 #### 한 줄 요약
 
-> **45개는 어휘이고, 8장은 그 어휘로 쓴 검증된 문장이다.**
+> **45개는 어휘이고, 레시피는 그 어휘로 쓴 검증된 문장이다.**
+>
+> 단 우리 과제에서는 그 문장이 거의 없다 — 손으로 쓴 5장 중 4장이 **단어 하나**이고,
+> 그래서 레시피를 LLM이 제안하게 한다(§9).
 
 LLM은 둘 다 쓸 수 있다 — 필드를 직접 제안하거나(각 1칸), `use_recipe`로 장을 고르거나(1칸).
 
@@ -1066,7 +1069,7 @@ LLM은 둘 다 쓸 수 있다 — 필드를 직접 제안하거나(각 1칸), `u
 ```python
 RECIPE_POOLS = {
     "locomo":          RECIPES_LOCOMO,   # 14장 (레포 원본)
-    "legal_retrieval": RECIPES_LEGAL,    #  8장 (우리가 작성)
+    "legal_retrieval": RECIPES_LEGAL,    #  5장 (손으로 작성) + 학습된 카드
 }
 pool = RECIPE_POOLS.get(benchmark, [])
 ```
@@ -1081,15 +1084,15 @@ LoCoMo 14장을 그대로 쓸 수 없는 이유는 **측정 근거가 다른 도
 ### pool 전체가 매 라운드 보이는 것은 아니다
 
 ```
-8장 (pool)
+pool (손 5장 / 학습된 n장 / 둘 다 / 빈 pool — `--recipes`)
   → trigger(현재 설정 · attempt_history)를 통과한 것만
   → 이미 거부된 적 있는 수는 제외           ← match_recipes의 공통 가드(§9)
   → {available_recipes} 로 프롬프트에 노출
   → LLM이 use_recipe로 고르거나 무시        ← 강제가 아니라 제시
 ```
 
-θ₀에서는 `lexical_first_light_semantic` 한 장만, 정체 2회 후에는
-`escape_plateau_shallower_swap`이 추가로 뜬다(§9의 trigger 맵).
+θ₀에서는 `lexical_first_light_semantic` 한 장만 뜬다(§9의 trigger 맵). 정체 시 뜨던
+`escape_plateau_shallower_swap`은 §33에서 제거됐다 — 제안 전체가 깊이 스칼라였다.
 
 ### 45개 필드 전부
 
@@ -1413,7 +1416,7 @@ A2에서 +0.0119, A3에서 −0.3421로 **부호가 뒤집히므로** 전역 설
 | 층 | 모듈 | 보는 범위 | 초기 4회 실행 | **현재** |
 |---|---|---|---|---|
 | per-round 진단 | `diagnosis.py` | 이번 라운드 스냅샷 | 작동 | 작동 |
-| 레시피 (capability card) | `evolution_cookbook.py` | 실패 패턴 → 검증된 설정 bundle | **pool이 비어 있음** | **`RECIPES_LEGAL` 8장 투입 → 해결**(§9) |
+| 레시피 (capability card) | `evolution_cookbook.py` | 실패 패턴 → 검증된 설정 bundle | **pool이 비어 있음** | **`RECIPES_LEGAL` 투입 → 해결**(§9). 당시 8장, 현재 5장이고 그중 4장은 단일 필드다 |
 | meta 분석 | `meta_analysis.py` | 라운드 **이력 전체** | 호출되나 제안 폐기 | **변동 없음**(`elitist=True` 유지) |
 
 **결과**: 2층을 채우자 R1 정체가 풀렸다 — R0에서 레시피 발동, R1·R2 연속 ACCEPT,
@@ -1437,7 +1440,7 @@ pool = RECIPES_LOCOMO if benchmark == "locomo" else []
 `${available_recipes}` 슬롯이 매 라운드 비어 있었다.
 
 **조치** — 벤치마크 이름으로 pool을 고르는 구조로 바꾸고(2줄, LoCoMo 불변), 우리 측정 결과로
-법률 레시피 8장을 새로 작성했다(§9).
+법률 레시피를 새로 작성했다(§9). 당시 8장이었고 지금은 5장이다.
 
 ```python
 RECIPE_POOLS = {"locomo": RECIPES_LOCOMO, "legal_retrieval": RECIPES_LEGAL}
@@ -1754,6 +1757,12 @@ semantic을 크게 끌어올렸는데(문서 8,383자), LeCaRD(5,608자)에서�
 > 현재 5장: `lexical_first_light_semantic`(fusion + semantic view를 함께 켠다) ·
 > `entity_swap_shallow` · `query_rewrite_append_once`(LeCaRDv2 전용) ·
 > `undo_structured_view` · `undo_chapter_filter`.
+>
+> **갱신 2026-11-13**: 그 5장 중 **4장의 제안이 필드 하나**다. 그러면 진단 LLM이 카드
+> 없이 직접 쓸 수 있으므로 묶음의 값이 없다 — §33의 삭제 기준이 불리언 하나짜리에도
+> 똑같이 걸리는데 기준을 '스칼라'로 좁게 적어 남겼다. 유일한 2필드 묶음은 데이터셋마다
+> 부호가 뒤집힌다(LEGAR +0.0101 / LeCaRD −0.1068). 그래서 **레시피를 LLM이 제안하게
+> 한다** — 이 절 끝의 "지금 가는 방향"이 그 메커니즘이다.
 
 레포 docstring이 레시피의 정체를 명시한다:
 
@@ -1842,7 +1851,7 @@ Recipe(
 **① trigger 평가** (`match_recipes()`, `evolution_cookbook.py:542`) — 라운드당 1회
 
 ```python
-pool = RECIPE_POOLS.get(benchmark, [])      # "legal_retrieval" → 우리 8장
+pool = RECIPE_POOLS.get(benchmark, [])      # "legal_retrieval" → 우리 pool
 for r in pool:
     if r.trigger(report_fields, current_config, attempt_history):
         matched.append(r)
@@ -1914,39 +1923,35 @@ for k, v in recipe.proposal.items():
 전부 `current_config`에 대한 조건식이고(하나만 이력을 본다), **성능을 보지 않는다.**
 그래서 "지금 설정이 어떤 상태인가"로 노출 여부가 결정된다.
 
-> **갱신 2026-11-11**: pool은 그 뒤 **5장**(데이터셋별 4장)으로 줄었다(절 머리 참조). 원칙이 하나 생겼다 —
-> **카드 하나는 메커니즘 하나**. 이유는 §9 끝의 "bundle이 측정을 막는다"와
-> JOURNAL §28에 있다.
+실제 pool은 **5장**이고, 데이터셋별로 4장이 된다(`enable_query_rewrite`가 rewrite
+테이블이 있는 LeCaRDv2에서만 산다). 원칙은 **카드 하나는 메커니즘 하나**다.
 
-| 지금 설정 상태 | 노출되는 레시피 | 메커니즘 |
-|---|---|---|
-| fusion 꺼짐(`keyword_only`) 또는 `semantic_top_k==0` | `lexical_first_light_semantic` | **전제** (fusion+semantic 켜기) |
-| fusion 켜짐 + swap 꺼짐 | `entity_swap_shallow` | swap 켜기 |
-| fusion 켜짐 + swap 켜짐 + `k<15` | `swap_depth_shallow` | swap 깊이 |
-| fusion 켜짐 + swap 꺼짐 + 재작성 꺼짐 | `query_rewrite_append_once` | 재작성 |
-| `weighted_sum` + semantic 켜짐 + `weight_semantic>0.5` | `undo_semantic_overweight` | semantic 가중치 |
-| `weighted_sum` + 메타 켜짐 + `weight_structured>0.3` | `undo_structured_overweight` | 메타 가중치 |
-| `structured_top_k>0` + 가중치>0.3 | `undo_structured_view` | 메타 켜기 |
-| `enable_chapter_filter` 켜짐 | `undo_chapter_filter` | 장 필터 |
-| 2라운드+ 수락 없음 **AND** swap 켜짐 **AND** `k>15` | `escape_plateau_shallower_swap` | **탈출** (깊이) |
+| 지금 설정 상태 | 노출되는 레시피 | 제안 | 메커니즘 |
+|---|---|---|---|
+| fusion 꺼짐(`keyword_only`) 또는 `semantic_top_k==0` | `lexical_first_light_semantic` | `fusion_mode: rrf`, `semantic_top_k: 100` | **전제** (fusion+semantic 켜기) |
+| fusion 켜짐 + strip 꺼짐 | `entity_swap_shallow` | `enable_entity_swap: True` | party-strip 켜기 |
+| fusion 켜짐 + strip 꺼짐 + 재작성 꺼짐 | `query_rewrite_append_once` | `enable_query_rewrite: True` | 재작성 |
+| `structured_top_k>0` | `undo_structured_view` | `structured_top_k: 0` | metadata 끄기 |
+| `enable_chapter_filter` 켜짐 | `undo_chapter_filter` | `enable_chapter_filter: False` | 장 필터 끄기 |
 
-**제거된 카드**: `undo_query_decomposition`. 그것이 끄던 세 레버
-(`enable_intent_planning`·`enable_query_decomposition`·`enable_coverage_reflection`)가
-action space에서 빠져(§26) **trigger가 영구 거짓**이 됐고, 재측정이 네 데이터셋 전부
-정확히 +0.0000 / CI[0,0]으로 확인했다. `trigger_base()`는 카드가 **trigger가 받는
-상태에서 측정되는지**는 검사하는데, 그 상태가 **도달 가능한지**는 아무도 검사하지
-않았다.
+**다섯 장 중 네 장의 제안이 필드 하나다.** 그러면 진단 LLM이 카드 없이 그 필드를 직접
+쓸 수 있으므로 묶음의 의미가 없다 — 이것이 §33의 삭제 기준("제안 전체가 action space에
+이미 있는 필드")에 똑같이 걸리는데, 당시 기준을 '스칼라'로 좁게 적어 불리언 하나짜리를
+남겼다. 유일한 2필드 묶음은 데이터셋마다 부호가 뒤집힌다(LEGAR +0.0101 / LeCaRD −0.1068).
 
-**분할된 카드**: `undo_auxiliary_overweight` → `undo_semantic_overweight` +
-`undo_structured_overweight`. 서로 다른 두 view의 가중치를 한 장이 건드려 어느 쪽이
-벌었는지 말할 수 없었고, 측정은 둘을 반대편에 놓는다 — 메타 view를 끄는 것은 세
-데이터셋에서 이득(+0.55/+0.74)이고 semantic 가중치를 내리는 것은 LEGAR에서 **손실**
-(−0.0033, CI 전체 음수)이다.
+**제거된 카드 (§33, 2026-11-11)**: `swap_depth_shallow`, `undo_semantic_overweight`,
+`undo_structured_overweight`, `escape_plateau_shallower_swap` — 제안 전체가 action space
+필드의 스칼라 크기였다. `undo_semantic_overweight`의 0.3은 LeCaRDv2의 train 최적값이고
+LEGAR(최적 2.0)에는 **반대 방향**을 가리켰다.
+`undo_query_decomposition`도 제거됐다 — 그것이 끄던 세 레버가 action space에서 빠져
+**trigger가 영구 거짓**이 됐고, 재측정이 네 데이터셋 전부 +0.0000 / CI[0,0]으로 확인했다.
+`trigger_base()`는 카드가 trigger가 받는 상태에서 측정되는지는 검사하는데, 그 상태가
+**도달 가능한지**는 아무도 검사하지 않았다.
 
-**카드가 더 이상 갖지 않는 것: 크기.** `weight_semantic`·swap 깊이 같은 값은 LLM이
-데이터 특성에 맞춰 고를 것이고, 카드는 **구조**(어느 필드가 함께 움직여야 효과가
-있는가)만 말한다. 그 이유가 §8의 `weight_semantic` 표다 — 최적값이 데이터셋마다
-0.1~2.0으로 벌어지므로 **한 상수는 어딘가에서 반드시 손해**다.
+**카드가 갖지 않는 것: 크기.** `weight_semantic`·깊이 같은 값은 LLM이 고르고, 카드는
+**구조**(어느 필드가 함께 움직여야 효과가 있는가)만 말한다. 근거는 §8의
+`weight_semantic` 표다 — 최적값이 0.1~2.0으로 벌어지므로 **한 상수는 어딘가에서 반드시
+손해**다.
 
 ### 많아지면 프롬프트가 터지지 않는가 — 실측 0~2장
 
@@ -1958,11 +1963,15 @@ LeCaRDv2 클래스별 실행의 실제 라운드 설정으로 `match_recipes()`�
 | θ₀ | 1 | `lexical_first_light_semantic` |
 | A2 r1 | 2 | `entity_swap_shallow`, `query_rewrite_append_once` |
 | A2 r2 | **0** | — |
-| A2 r3 | 1 | `undo_query_decomposition` |
-| A8 r3 | 2 | `entity_swap_shallow`, `undo_query_decomposition` |
+| A2 r3 | 1 | ~~`undo_query_decomposition`~~ (이후 제거) |
+| A8 r3 | 2 | `entity_swap_shallow`, ~~`undo_query_decomposition`~~ |
 | A8 r4~r6 | **0** | — |
 
-**8장 중 최대 2장**이고 0장인 라운드가 흔하다. trigger들이 서로 배타적으로 설계된
+> **이 표는 2026-11-02 pool(8장)로 센 것이고 제거된 카드를 포함한다.** 지금 pool(5장)에서는
+> 발동 수가 더 적다. 숫자가 아니라 **"pool이 커져도 노출 수는 따라 커지지 않는다"**는
+> 성질을 읽을 표다.
+
+**최대 2장**이고 0장인 라운드가 흔하다. trigger들이 서로 배타적으로 설계된
 결과다 — `lexical_first_light_semantic`은 fusion이 꺼진 상태에서만, `entity_swap_shallow`는
 켜진 상태에서만 열린다. 켜기 레시피가 전제를 요구하므로 **순서가 상태로 강제된다.**
 
@@ -1982,17 +1991,104 @@ LeCaRDv2 클래스별 실행의 실제 라운드 설정으로 `match_recipes()`�
 **lift로 정렬하지 않는 이유가 코드 주석에 남아 있다.** 기대 이득이 큰 장이 자신의
 전제보다 앞에 오면, 낮은 temperature의 LLM이 **순서가 틀린 수**를 고른다. LoCoMo에서
 `cat1_cat4_paraphrase_killer`(+8 pp)가 RRF(+6 pp)보다 먼저 선택돼 R2에서 0.29로
-퇴행한 기록이 그것이다. 우리 pool도 같은 구조다 — `undo_*` 4장의 기대 이득이 8~9 pp로
-가장 큰데, 그것들은 **해로운 설정이 켜져 있을 때만** 의미가 있다.
+퇴행한 기록이 그것이다. 우리 pool도 같은 구조였다 — `undo_*` 카드의 기대 이득이 8~9 pp로 가장 컸는데, 그것들은
+**해로운 설정이 켜져 있을 때만** 의미가 있다. (그 8~9 pp 자체가 §31에서 문제가 됐다:
+머리말 숫자가 중요도와 **반대로** 정렬돼 있었고, 이제 해당 데이터셋 train 측정이 있을
+때만 찍는다.)
 
-선언 순서는 그래서 **의존 순서**다: 켜기(전제→swap→재작성) → 되돌리기 → 탈출.
+선언 순서는 그래서 **의존 순서**다: 켜기(전제→strip→재작성) → 되돌리기.
 
-### 다음 (C) — 레시피 자체를 진화시키기
+### 지금 가는 방향 — LLM이 레시피를 제안한다 (2026-11-13 결정)
 
-"When Rules Learn"(Tao et al. 2026)의 구조를 레시피에 적용: LLM이 새 레시피를 제안 → dev에서
-검증 → 효과 없으면 폐기. **action space 고갈**(§8)을 푸는 유일한 방향이다. 그 논문도 사람이 쓴
-규칙 1장을 seed로 주고 시작했고, Limitations에서 *"다른 벤치마크에 적용할 때는 적절한 seed
-규칙을 주는 것이 좋다"*고 명시한다. 위 카드들이 그 seed에 해당한다. **이 방향으로 결정했다(2026-11-13)** — `learn_recipes.py`가 제안을 받고 train-dev가 승인하며, 승인 기준은 그 데이터셋의 측정된 noise floor다. `--recipes learned`로 학습된 카드만 쓰는 arm이 돈다.
+손으로 쓴 pool이 위와 같이 비어 있으므로, **레시피를 사람이 쓰지 않고 LLM이 제안하게
+한다.** "When Rules Learn"(Tao et al. 2026)의 구조다 — 그 논문도 사람이 쓴 규칙 1장을
+seed로 주고 시작하며, Limitations에서 *"다른 벤치마크에 적용할 때는 적절한 seed 규칙을
+주는 것이 좋다"*고 명시한다. 위 5장이 그 seed에 해당한다.
+
+그리고 근거가 하나 더 있다. **LLM이 낸 카드는 묶음이었다.** 옛 코퍼스에서 승인된 4장은
+전부 4~5개 필드를 함께 움직였다(예: `{fusion_mode: weighted_sum, semantic_top_k: 50,
+mmr_diversity_weight: 0.2}`). 사람이 쓴 카드가 단일 필드로 환원된 것과 정반대다.
+
+#### 언제 도는가 — 루프 밖이다
+
+`learn_recipes.py`는 **진화 실행 전에, 따로** 돈다. 루프 안에 접으면 한 라운드의 결과가
+같은 실행 중에 변한 pool에 의존하게 되고, 그러면 "어떤 pool이 이 성적을 냈나"를 말할
+수 없다. 분리해 두면 **한 pool을 다른 pool과 같은 루프에서 비교**할 수 있다.
+
+#### 승인 — 세 관문
+
+제안 하나당 **LLM 1회 + train-dev 채점 2회**(기반과 후보)다. 그리고:
+
+| 관문 | 내용 |
+|---|---|
+| 1 | paired bootstrap **CI 하한 > 0**, 수준은 같은 fold에 던진 후보 수로 보정(`ALPHA/k`) |
+| 2 | 평균 > **그 데이터셋의 측정된 noise floor** |
+| 3 | **종점 > θ₀** — 아무도 서지 않을 분기에서 개선해 1·2를 통과할 수 있다 |
+
+2번이 2026-11-13에 고쳐졌다. 그때까지 `0.003`(LoCoMo 상수)이었고 **넷 중 셋에서 noise
+floor 아래**였다. `admit(threshold=)`는 **키워드 전용·기본값 없음**이라 호출자가
+`noise_floor(dataset)`를 넘겨야 한다.
+
+**단 floor는 full train에서 쟀고 승인은 train-dev(20%)에서 한다.** 작은 fold가 더
+시끄러우므로 floor는 **하한**이고, 실제로 묶는 것은 dev 델타로 bootstrap한 1번이다.
+LeCaRD는 train 79 → dev 28이므로 **아무것도 승인되지 않을 가능성이 높다** — 그것은
+버그가 아니라 그 데이터셋의 해상도다.
+
+#### 기반은 그 카드의 trigger를 만족하는 상태다
+
+후보는 θ₀가 아니라 **자기 trigger가 참인 설정**에서 측정한다. θ₀에서 재면 trigger가
+거짓인 카드의 제안이 아무것도 바꾸지 않아 Δ=0이 된다. 다만 경계값을 쓰면 안 된다 —
+`> 0`에 대해 `semantic_top_k=1`을 잡으면 기반이 0.0814로 떨어지고 후보가 **+0.3092**로
+읽혀, 그 숫자가 진단 LLM에게 **측정된 사실**로 제시된다. 그래서 `REPRESENTATIVE`는
+"누군가 실제로 서 있을 수 있는 설정"이다(깊이 전부 100, `weight_semantic` 0.3).
+
+#### 데이터셋별로 격리한다
+
+`as_recipes(dataset=)`가 그 데이터셋에서 승인된 카드만 돌려준다. **이 필터가 없던 것이
+오염의 원인이었다**(JOURNAL §34) — 승인된 4장 중 3장이 LEGAR에서만 측정됐는데 LeCaRD와
+COLIEE 루프가 그 4장을 전부 받고 있었다. `dataset`은 `measured_block`이 **항상 기록하고
+있었고 아무도 읽지 않았다.**
+
+#### 네 개의 arm
+
+```
+--recipes hand      손으로 쓴 5장 (위 표)
+--recipes learned   그 데이터셋에서 승인된 LLM 제안 카드만
+--recipes both      둘 다
+--recipes none      빈 pool — LLM이 원시 필드로 같은 설정을 조립해야 하고
+                    필드마다 step-cap 1칸을 쓴다
+```
+
+`learned`는 손으로 쓴 pool을 **먼저 비우고** 넣는다. 이전에는 플래그 둘
+(`--no-recipes`/`--learned-recipes`)이 상호 배타여서 **"학습된 카드만"이 도달 불가**였다.
+
+`--exclude-recipe-dev`를 함께 써야 한다. 그러지 않으면 **카드를 승인한 fold가 그 카드로
+점수를 내는 fold와 같다.**
+
+#### 프롬프트가 LLM에게 말하는 것
+
+제안 프롬프트는 네 view와 그 입력, **깊이가 전부 100이라는 측정**, 이미 있는 카드(중복
+금지), 각 필드를 몇 장이 이미 건드리는지, 거부된 후보, 그리고 **루프가 라운드당 몇 필드를
+움직일 수 있는지**를 담는다.
+
+마지막 항목이 2026-11-13에 틀린 값이었다. 상수 하나가 두 일을 하고 있었다 — 루프의
+step-cap(**2**)과 카드가 담을 수 있는 필드 수(**5**)가 같은 `MAX_FIELDS`였고, 프롬프트는
+"루프는 라운드당 5개 바꿀 수 있다"고 알려주고 있었다. **레시피의 논거 자체가 그 숫자다**
+("한 칸으로 여러 필드"). `STEP_CAP = 2`로 분리했다.
+
+#### 측정할 것
+
+| 질문 | 어떻게 |
+|---|---|
+| LLM이 사람보다 나은 카드를 내는가 | `hand` vs `learned` vs `both`, 같은 루프 |
+| 레시피가 애초에 필요한가 | `none` vs 나머지 — 행동 공간 12개에서 묶음의 값 |
+| 묶음의 조건이 상태인가 쿼리인가 | 승인된 카드가 `per_category_overrides`로 대체 가능한 종류인지 |
+
+세 번째가 열려 있는 질문이다. 묶음이라는 장치는 action space 안에 이미 있고
+(`per_category_overrides` = 조건 + 여러 필드 + 1칸), 조건이 **실행 상태**가 아니라
+**쿼리의 카테고리**다. 그쪽이 더 많이 움직였다(11-02 측정: val +0.0079 대 전역 +0.0012,
+**옛 코퍼스·옛 임베딩 기준이므로 현재 성적과 섞어 쓸 수 없다**). 레시피의 자리가 좁은
+이유 하나가 이것일 수 있다.
 
 ## 10. 현재 성적
 
@@ -2082,7 +2178,7 @@ LeCaRDv2, NDCG@30. 진화는 train에서만 돌리고 test는 최종 확인용.
 | arm | 레시피 | 측정 상태 | 무엇을 말해 주는가 |
 |---|---|---|---|
 | A | 없음 | **측정됨** — 4회 실행 전부 R1 정체 | 루프는 step-cap 장벽을 **혼자 못 넘는다** |
-| B | 저자 seed 8장 | 위 표 | **저자의 사전 지식 + 루프**. self-evolution의 증거가 아니다 |
+| B | 저자 seed (당시 8장, 현재 5장) | 위 표 | **저자의 사전 지식 + 루프**. self-evolution의 증거가 아니다 |
 | C | **LLM 학습분만** | **1장뿐 — arm이 성립하지 않는다** | self-evolution의 증거가 될 유일한 arm |
 | D | seed + 학습분 | 미측정 | 실무상 최선 |
 
