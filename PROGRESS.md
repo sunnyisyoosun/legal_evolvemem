@@ -1,6 +1,6 @@
 # EvolveMem for Legal Case Retrieval — 진행 상황
 
-마지막 업데이트: 2026-10-30
+마지막 업데이트: 2026-11-22
 
 논문 [EVOLVEMEM](https://github.com/aiming-lab/SimpleMem)의 self-evolution 검색 구조를
 법률 판례 검색(LeCaRD / LeCaRDv2 / COLIEE / LEGAR)에 적용하는 작업 기록.
@@ -12,25 +12,62 @@
 **지금 무엇이 돌고 있고 다음에 무엇을 하는지**만 적는다. 시스템 구조는
 [METHODOLOGY.md](METHODOLOGY.md), 날짜순 발견과 실수는 [JOURNAL.md](JOURNAL.md)에 있다.
 
-### 지금 위치 (2026-11-13)
+### 지금 위치 (2026-11-22)
 
-**막힌 곳 없음.** 진단 LLM은 **OpenRouter로 결정**됐다(사용자 판단). 자체 vLLM을 올리지
-않으므로 `yeop`의 GPU·포트를 건드리지 않는다. 키는 실행 시 `/home/yoosun/evolve/config.py`
-에서 읽고 하드코딩·출력하지 않는다.
+**돌고 있는 것** — `noise_floor.py`가 LeCaRDv2 → COLIEE → LEGAR_stricter의 수용 임계값을
+재고 있다(LeCaRD는 완료: **0.0103**). 데이터셋마다 즉시 기록하므로 중간에 끊겨도 끝난
+것은 남는다.
 
-**다음은 LLM 레시피 제안 실행이다.** 틀은 완성됐고(dry-run 네 데이터셋 확인), 호출만
-남았다. 제안당 LLM 1회 + train-dev 채점 2회.
+**막혀 있는 것** — 그 셋의 floor가 나오기 전까지 `verify.py`가 **진화 실행을 막는다.**
+floor가 카드 기반 폴백이면 게이트가 실패한다(아래 "floor 출처 교체").
+
+**바로 다음** — floor가 채워지면 **LLM 루프를 돌린다.** 2026-10-31 이후 한 번도 돌지
+않았고, 그 사이 액션 공간·수용 임계값·레시피 구조가 모두 바뀌었다.
 
 ```bash
-python3 learn_recipes.py --dataset LeCaRDv2 --proposals 6 --temperature 0.7 \
-    --base-url https://openrouter.ai/api/v1 --model <model>
+V=/home/yoosun/legal/.venv-evolve/bin/python
+$V verify.py                                            # 네 데이터셋 게이트
+$V legal_evolve.py --dataset LeCaRDv2 --split train --rounds 7 \
+    --recipes bundles \
+    --base-url https://openrouter.ai/api/v1 --model openai/gpt-oss-120b
+$V select_on_val.py --dataset LeCaRDv2 --dir evolution_official --write
 ```
 
-### 끝난 것 (2026-11-12~13)
+진단 LLM은 **OpenRouter / `openai/gpt-oss-120b`**이고 키는 실행 시
+`/home/yoosun/evolve/config.py`에서 읽는다(출력하지 않는다). 자체 vLLM은 띄우지 않는다.
+
+> **이 실행으로 무엇을 말할 수 있나.** 1회 실행이다. `temperature=0`인데도 라운드2 제안이
+> 갈린 전례가 있으므로(§11) 나오는 Δ는 "효과"가 아니라 **관측 하나**다. 반복 실행으로
+> σ_run을 재는 일은 아직 못 했다.
+
+### 끝난 것 (2026-11-16 · 11-22) — 전부 사람 쪽 작업이다
+
+이 두 날의 작업은 **②의 공간을 참으로 만드는 일**이었고, 그 공간을 ②가 실제로 탐색하게
+한 적은 없다. 루프는 10-31 이후 0회다.
 
 | | 결과 |
 |---|---|
-| **view 조합 8가지 완주** (`--grid fusion`) | §8이 **8가지 중 7개만** 쟀고 네 view 전부 켜는 하나가 빠져 있었다. 추가해 네 데이터셋 train 완주 → **BM25+semantic 둘만이 전부에서 1위** |
+| **`fusion_mode` 분해** | 한 enum에 **세 종류의 연산**이 섞여 있었다 — `*_only`는 view 마스크(어느 view를 **실행**할지 게이팅), `first_found`는 캐스케이드, 진짜 fusion은 둘뿐. 축이 아니라 **선택자**다 |
+| **`first_found` 차단** | 정렬 없이 view를 이어붙여 `semantic_top_k ≥ max_context`면 앞 view가 자리를 다 먹는다(실측 `first_found` 0.2797 **= `semantic_only`**, `keyword_only` 0.3948). 네 곳에서 동시에 막았다 — 초크포인트 예외 · 제안 검증기 · 카드 검증기 · 프롬프트(**이름은 남기고 거부 이유를 적는다**) |
+| **레버 등록부** (`registry.py`) | 레버를 **(입력 × 채점)** 좌표로 등록하고 `verify.py`가 R2(좌표 유일성)를 건다. 제안 가능 12필드 중 **레버는 9개**, 셋은 결합 축·후보 필터·후처리다 |
+| **등록 규칙 R1~R7** | 이번에 찾은 다섯 결함이 서로 다른 버그가 아니라 **등록 규칙의 부재**라는 한 원인이었다. **R3(기본값 위에서 판정 금지)** 하나가 과거 오판 넷을 전부 설명한다 |
+| **R2가 즉시 잡은 것** | `enable_query_rewrite`와 `enable_entity_swap`이 **같은 레버**다 — 재작성 프롬프트 1번 줄이 party-strip과 같은 삭제를 지시한다. §5가 상관(+0.524)을 이미 쟀는데 결론을 내리지 않았다 |
+| **등록부의 빈칸** | 질의를 바꾸는 레버 둘이 **모두 삭제**다. BM25는 문서에 있는 용어만 매칭하므로 삭제만으로는 재현율이 구조적으로 오르지 않는다 — rewrite의 +0.0009 CI∋0은 레버가 약한 게 아니라 **상한**이다 |
+| **레시피 세 타입** | `Recipe` 하나가 세 일을 담고 있었다 → **Bundle**(필드 집합, 값 없음) · **Constraint**(금지 상태) · **Rule**(재작성 텍스트). 5장 → **1+1+1**. 단일 필드 Bundle은 **생성 자체가 안 된다**(`__post_init__`) |
+| **Bundle cap seam** | Bundle은 값이 없어 벤더 `Recipe`로 변환이 **원리적으로 불가능**하다. shim(`proposal={}`)으로 이름만 받고, 우리 엔진이 `cap' = cap + |제안 ∩ 번들 필드|`로 넓힌다. 벤더 포크 없음 |
+| **floor 출처 교체** | 수용 임계값이 `measure_recipes.py`가 **마침 측정해 둔 카드들**의 CI 중앙값이었다 — pool의 성질이지 데이터셋의 성질이 아니다. 그 숫자를 만든 카드 8장 중 **3장은 이미 존재하지 않았다**. 고정 **설정 쌍 13개**로 교체(`noise_floor.py`), LeCaRD **0.0228 → 0.0103** |
+| **`measure_recipes` 축소** | 207 → **151줄**, Rule 전용. "설정 둘 채점 → paired bootstrap"이 **세 군데** 복사돼 있던 것을 `recipe_learning.measure_pair()`로 합쳤다 |
+| **Axis B 잔재 제거** | 8,545 쿼리 행에 `difficulty_class`가 **0개**인데 함수·분기·캐리 목록이 남아 있었다. `LABEL_KEYS`와 `REQUIRED`가 같은 튜플이 되어 하나로 |
+| **파일 정리** | `levers.py`+`recipes.py` → **`registry.py`** (Rule의 좌표 불변식이 두 파일에 걸쳐 있었다). 6개 파일에 복사돼 있던 로딩 블록 → `evaluate.load_fold()` |
+| **긴 작업이 결과를 잃던 결함** | `noise_floor.py`·`measure_recipes.py`가 **전체 루프 끝에 한 번** 기록해서, 중단되면 끝난 데이터셋까지 날아갔다(실제로 한 번 겪었다) → 데이터셋마다 기록 |
+| **문서 정리** | METHODOLOGY 결론 표 49행이 changelog가 돼 있었다 → 지형/측정/구조 셋으로 나누고 날짜 붙은 정정 13행은 JOURNAL §50으로. 같은 표 안의 **모순**(party-strip "죽었다" vs "판정 철회") 해소, 존재하지 않는 `JOURNAL §49` 참조 4건 수정 |
+
+### 그 전 (2026-11-12~13)
+
+
+| | 결과 |
+|---|---|
+| **view 조합 8가지 완주** (`--grid fusion`) | §8이 **8가지 중 7개만** 쟀고 네 view 전부 켜는 하나가 빠져 있었다. 추가해 네 데이터셋 train 완주 → **깊이 100에서 ⑧(네 view 전부)이 세 곳에서 1위**(+0.0159/+0.0061/+0.0073), LeCaRD만 ②. 깊이 10/30에서는 ②가 네 곳 전부 1위로 보였다 |
 | **깊이 통일** (`--grid depth`) | view별 깊이가 100/100/10/30으로 근거 없이 흩어져 있었다. k∈{30,100,200} 측정 → **100이 knee**, 30은 semantic 이득 대부분을 잃는다(LeCaRDv2 +0.0140 → +0.0042). 다섯 파일에 반영 |
 | **party-strip 판정 철회** (`--grid swap-depth`) | "죽었다/해롭다"는 **전부 깊이 30에서 잰 것**이었다. k=100에서 LeCaRD +0.0191·LeCaRDv2 +0.0161로 끄는 것보다 높다. 다만 floor 안이라 정직한 결론은 **"깊이 30 판정은 무효, 100은 중립"** |
 | **test fold 오염 발견** | §8의 네 데이터셋 표가 **test에서 나왔고** 그 결론("⑤가 1위")이 레시피·프롬프트에 들어갔다. 원인은 `evaluate.py --split` **기본값이 `test`**. train에서는 ⑤가 전부 최하위권 — 부호가 뒤집힌다 |
@@ -47,13 +84,15 @@ python3 learn_recipes.py --dataset LeCaRDv2 --proposals 6 --temperature 0.7 \
 
 ### 다음 순서
 
-1. **LLM 레시피 제안 4회** (데이터셋별) — 틀 완성, 호출만 남음
-2. **§8 표를 train 수치로 교체** — test 오염 제거. 숫자는 이미 다 있다
-3. **`enable_chapter_filter` 기본값** — 되돌리는 카드가 네 데이터셋 **전부 양수이고 가장 크다**(+4.5~+13.6pp). 레시피가 아니라 tier ① 기본값 문제이고, 바꾸면 θ₀부터 다시 잰다
-4. **데이터셋별 진화 4회** — 채점: 정답지의 봉우리에 **몇 번의 평가로 얼마나 근접**하는가
-5. **카테고리별 진화** — §6의 요구사항
-6. 엔진 ablation: step-cap 2/5, **진단 정보 제거·셔플**(LLM이 데이터를 읽는지 사전지식만 쓰는지 — 한 번도 재지 않았다), CoT on/off
-7. 죄명 수정 반영: 재빌드(3분) → **재임베딩(57분)** → 같은 sweep 재측정
+1. **floor 셋 완료** → `verify.py` 통과 (돌고 있다)
+2. **LLM 루프 1회** — LeCaRDv2, `--recipes bundles`. **Bundle을 LLM이 처음으로 쓰는 실행**
+3. **2×2** — `{bundles, none} × {step_cap 2, 완화}`. `①−③ ≈ ④−③`이면 Bundle의 독립
+   기여는 0이고, 그것은 버그가 아니라 보고할 결과다(§3)
+4. **R2 해소** — rewrite 4조건 분해(off / 현재 / 삭제만 / 확장만). 확장만이 현재를 못
+   이기면 레버를 **없앤다**(action space 12 → 11)
+5. **등록부 빈칸 채우기** — 확장 Rule. `admit()`의 두 경로 분기가 선행
+6. **σ_run** — 같은 조건 반복. 이것 없이는 어떤 Δ도 "효과"라 부를 수 없다
+7. **카테고리별 진화** — §6의 요구사항
 8. **test fold** — 마지막. **단 §8이 이미 한 번 채점했으므로 held-out이 아니다**
 
 **취소된 과제**: 삭제-질의 벡터 선계산 — semantic은 의미 view이므로 원문을 읽고,
