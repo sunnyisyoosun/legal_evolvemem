@@ -59,7 +59,6 @@ def assemble(dataset: str) -> tuple[str, list, float, list]:
     CB.RECIPE_POOLS["legal_retrieval"] = list(CB.RECIPES_LEGAL)
     qa = [{"category": c, "meta": {"qtype": f"class{c}"}} for c in (1, 2)]
     LE._install_diagnosis_context(qa, dataset)
-    RL.apply_measured_lifts(dataset)
     gone = DP.drop_dead_cards(CB, dataset)
     DP.install_recipe_text(LANG_OF[dataset], CB)
     thr, _ = RL.noise_floor(dataset)
@@ -112,12 +111,12 @@ def check_prompt(dataset: str) -> list[str]:
     # recipe cards. A card-derived floor is a property of the POOL: it moved
     # whenever a card was added or removed, and three of the eight cards
     # behind the live numbers no longer existed (METHODOLOGY 5,
-    # noise_floor.py). The fallback stays readable so an old checkout still
+    # measure.py (floor)). The fallback stays readable so an old checkout still
     # runs, but a gate that lets it through is a gate that keeps it.
     _, why = RL.noise_floor(dataset)
     if why.startswith("FALLBACK"):
         fail(f"noise floor is still card-derived ({why}); run "
-             f"`python3 noise_floor.py --datasets {dataset}`")
+             f"`python3 measure.py floor --datasets {dataset}`")
     elif f"{thr:.4f}" not in prompt:
         fail(f"acceptance threshold {thr:.4f} not stated in the prompt")
     if str(ROUNDS) not in prompt:

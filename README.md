@@ -42,7 +42,7 @@
                             └ party-strip 인명+사명+지명 제거 후 BM25 재검색
 ```
 
-**view별 후보 깊이는 전부 100이다**(측정값, `sweep.py --grid depth`). 30으로 내리면
+**view별 후보 깊이는 전부 100이다**(측정값, `measure.py grid --grid depth`). 30으로 내리면
 semantic view의 이득 대부분이 날아간다. 이 100은 반환 수 30(=NDCG@30, 지표가 고정)과
 무관한 **별개의 숫자**다 — view가 후보를 몇 건 내놓는가다.
 
@@ -53,17 +53,17 @@ semantic view의 이득 대부분이 날아간다. 이 100은 반환 수 30(=NDC
 | 파일 | 역할 |
 |---|---|
 | `legal_meta.py` | 규칙 기반 메타데이터 추출 (법조문·죄명·당사자·법원·날짜), 한자 숫자 정규화 |
-| `build_cases.py` | 판례·쿼리 → 검색 단위 dict (`corpus/{ds}_cases.json`) |
+| `build.py cases` | 판례·쿼리 → 검색 단위 dict (`corpus/{ds}_cases.json`) |
 | `legal_retriever.py` | `LegalIndex` — 토크나이저 주입, 쿼리 확장, pool 마스킹(기본 off) |
-| `legal_taxonomy.py` · `classify_queries.py` | 벤치마크 공식 체계로 쿼리 분류, **공식 train/val/test fold 주입** |
-| `build_embeddings.py` | 다국어 임베딩 선계산 |
-| `evaluate.py` · `sweep.py` | 단일 설정 평가 / 설정 비교 · 일반화 검증. `--grid {classes,fusion,weight,weight-edge,swap-depth,depth}` |
+| `legal_taxonomy.py` · `build.py classify` | 벤치마크 공식 체계로 쿼리 분류, **공식 train/val/test fold 주입** |
+| `build.py embed` | 다국어 임베딩 선계산 |
+| `evaluate.py` · `measure.py grid` | 단일 설정 평가 / 설정 비교 · 일반화 검증. `--grid {classes,fusion,weight,weight-edge,swap-depth,depth}` |
 | `verify.py` | **실행 전 단일 관문** — 조립된 프롬프트와 semantic view 입력을 함께 단정 (`verify_prompt.py` + `derived_queries.py` 통합) |
 | `registry.py` | **레버 등록부**(좌표 `(입력×채점)`) + **세 레시피 타입** `Bundle`/`Constraint`/`Rule` |
-| `noise_floor.py` | 데이터셋별 **수용 임계값** — 고정 설정 쌍 13개의 paired bootstrap CI 반폭 중앙값 |
-| `measure_recipes.py` · `strip_components.py` | **Rule**별 lift 측정 / 삭제 목록 성분별 측정 |
+| `measure.py floor` | 데이터셋별 **수용 임계값** — 고정 설정 쌍 13개의 paired bootstrap CI 반폭 중앙값 |
+| `measure.py rules` · `measure.py strip` | **Rule**별 lift 측정 / 삭제 목록 성분별 측정 |
 | `learn_recipes.py` · `recipe_learning.py` | **LLM이 레시피를 제안하고 train-dev가 승인** — 측정·승인 기계와 제안 프롬프트 |
-| `select_on_val.py` | 진화 라운드별 설정을 **val에서 재채점·선택** |
+| `runs.py select` | 진화 라운드별 설정을 **val에서 재채점·선택** |
 | **`legal_evolve.py`** | **진화 루프를 검색 과제로** — 어댑터 · 이음매 3개 · 진단 컨텍스트 |
 | `query_rewrite.py` | LLM 쿼리 재작성 (언어별 프롬프트, 디스크 캐싱) |
 
@@ -82,18 +82,18 @@ EvolveMem 레포는 **포크하지 않는다.** 진화 엔진이 튜닝할 로�
 V=/home/yoosun/legal/.venv-evolve/bin/python
 cd /home/yoosun/legal/evolve_legal
 
-$V build_cases.py --all                         # 1. 코퍼스 변환
-$V classify_queries.py --all                    # 2. 분류 + 공식 fold 주입
+$V build.py cases --all                         # 1. 코퍼스 변환
+$V build.py classify --all                    # 2. 분류 + 공식 fold 주입
 HF_HOME=/home/yoosun/.cache/hf \
-  $V build_embeddings.py --dataset LeCaRDv2 --queries --device cuda:2   # 3. 임베딩
+  $V build.py embed --dataset LeCaRDv2 --queries --device cuda:2   # 3. 임베딩
 
 $V verify.py                                    # 4. 실행 전 관문 (필수)
 $V evaluate.py --dataset LeCaRDv2 --split train --out runs/LeCaRDv2_bm25.json
-$V noise_floor.py --datasets LeCaRDv2                  # 5. 수용 임계값 (게이트가 요구한다)
+$V measure.py floor --datasets LeCaRDv2                  # 5. 수용 임계값 (게이트가 요구한다)
 $V legal_evolve.py --dataset LeCaRDv2 --split train --rounds 7 \
     --recipes bundles \
     --base-url https://openrouter.ai/api/v1 --model openai/gpt-oss-120b
-$V select_on_val.py --dataset LeCaRDv2 --dir evolution_official --write  # val 기준 선택
+$V runs.py select --dataset LeCaRDv2 --dir evolution_official --write  # val 기준 선택
 ```
 
 > **test fold는 `in_split()`이 막는다.** `--split test`·`all`·`None`은 `ALLOW_TEST=1`

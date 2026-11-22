@@ -231,7 +231,7 @@ fusion_mode     6값 → 5값 (목표 2값)
 
 ### noise floor가 레시피 pool에 묶여 있었다
 
-수용 임계값이 `recipe_lifts.json`, 즉 `measure_recipes.py`가 **마침 측정해 둔 카드들**의
+수용 임계값이 `recipe_lifts.json`, 즉 `measure.py rules`가 **마침 측정해 둔 카드들**의
 CI 반폭 중앙값이었다. 두 가지가 틀렸다.
 
 1. **pool의 성질이지 데이터셋의 성질이 아니다.** 살아 있던 임계값을 만든 카드 8장 중
@@ -249,9 +249,9 @@ CI 반폭 중앙값이었다. 두 가지가 틀렸다.
 
 ### 중단이 결과를 지웠다
 
-`noise_floor.py`가 **전체 루프 끝에 한 번** 기록해서, 세션 종료로 끊겼을 때 이미 끝난
+`measure.py floor`가 **전체 루프 끝에 한 번** 기록해서, 세션 종료로 끊겼을 때 이미 끝난
 LeCaRDv2와 진행 중이던 COLIEE가 **전부 사라졌다.** 몇 시간치 채점이 0이 됐다.
-`measure_recipes.py`도 같았다. 둘 다 데이터셋마다 기록하도록 고쳤다.
+`measure.py rules`도 같았다. 둘 다 데이터셋마다 기록하도록 고쳤다.
 
 > 결과를 메모리에만 들고 있는 긴 작업은 **두 번 돌려야 하는 작업**이다.
 
@@ -278,7 +278,7 @@ METHODOLOGY의 "지금 서 있는 결론" 표가 51행까지 자랐고, 그중 �
 | 카테고리 라벨 | 분해 블록은 `per_category_overrides` 키(정수)만, 실패 요약은 장 이름만 쓰고 있었다 — **같은 분류를 두 블록이 다르게 라벨링**. 이제 `[1] 제17장 성범죄` 형태로 둘 다 | JOURNAL §30 |
 | 실패 요약 | 엔진의 요약은 `prediction`을 산문으로 읽는다. 우리 것은 문서 ID 목록이라 abstention은 **항상 0**, wrong은 zero의 복사본, "의역 증상"은 **상시 발화**였다. 재현율 문제/순서 문제로 교체 | JOURNAL §30 |
 | 진단 실패 라운드 | 휴리스틱 대체 경로가 진단이 죽은 라운드에도 `max_context`(action space 밖)를 제안하고 있었다 → **껐다**. 제안이 없는 라운드는 아무것도 바꾸지 않는다 | JOURNAL §30 |
-| **`enable_chapter_filter`** | **오독 정정 (2026-11-13).** `undo_chapter_filter` 카드가 네 데이터셋 전부에서 +4.5~+13.6pp로 가장 크게 나온 것을 "θ₀ 기본값이 틀렸다"로 읽었는데, **기본값은 엔진도 θ₀도 이미 `False`**다. 그 숫자는 카드를 재기 위해 필터를 **켠 상태**(trigger 기반)에서 빠져나온 크기이고, §22의 "lift는 조건부이지 가산적이지 않다"에 정확히 해당한다. 네 데이터셋 전부 `[<t0]`로 거부돼 **0.00pp를 찍고 있었다** — 나는 거부 플래그를 보면서 왼쪽 숫자만 읽었다. `measure_recipes.py`의 주석이 **바로 이 카드를 예로 들어** 경고하고 있었다 | §22, JOURNAL §48 |
+| **`enable_chapter_filter`** | **오독 정정 (2026-11-13).** `undo_chapter_filter` 카드가 네 데이터셋 전부에서 +4.5~+13.6pp로 가장 크게 나온 것을 "θ₀ 기본값이 틀렸다"로 읽었는데, **기본값은 엔진도 θ₀도 이미 `False`**다. 그 숫자는 카드를 재기 위해 필터를 **켠 상태**(trigger 기반)에서 빠져나온 크기이고, §22의 "lift는 조건부이지 가산적이지 않다"에 정확히 해당한다. 네 데이터셋 전부 `[<t0]`로 거부돼 **0.00pp를 찍고 있었다** — 나는 거부 플래그를 보면서 왼쪽 숫자만 읽었다. `measure.py rules`의 주석이 **바로 이 카드를 예로 들어** 경고하고 있었다 | §22, JOURNAL §48 |
 
 ---
 
@@ -302,7 +302,7 @@ METHODOLOGY의 "지금 서 있는 결론" 표가 51행까지 자랐고, 그중 �
 1. **승인 게이트 3번**(종점 > θ₀)이 그 카드를 네 데이터셋 전부에서 거부하고 있었다.
    출력에 `claim +0.00pp (was +0.0) [<t0]`로 찍힌다 — 나는 거부 플래그를 보면서 **왼쪽
    숫자만** 읽었다.
-2. `measure_recipes.py`의 주석이 **바로 이 카드를 예로 들어** 경고하고 있었다:
+2. `measure.py rules`의 주석이 **바로 이 카드를 예로 들어** 경고하고 있었다:
    *"LeCaRD train에서 undo_chapter_filter는 0.4677 → 0.6241로 +15.65pp를 주장했는데 θ₀는
    0.6637이다. 루프가 출발하는 곳보다 나쁜 데 도달해서 얻는 것은 없다."*
 3. 그 게이트는 §21·§28에서 **이 카드 때문에 추가된 것**이다.
@@ -355,7 +355,7 @@ RRF는 후보 하나마다 1/(60+rank)를 더하므로 **후보를 많이 내는
 많이 주입한다.** 깊이 30인 view와 100인 view를 같은 가중치로 비교하면 그것은 view 비교가
 아니라 **깊이 비교**다.
 
-### 측정 (`sweep.py --grid swap-depth`, train, base = rrf+sem)
+### 측정 (`measure.py grid --grid swap-depth`, train, base = rrf+sem)
 
 | | off | k=10 | k=30 | k=100 |
 |---|---|---|---|---|
@@ -835,7 +835,7 @@ val에서 검증해 효과 없으면 폐기한다. **action space 고갈**(§8)�
 | `undo_auxiliary_overweight` | `weight_semantic` + `weight_structured` (**다른 두 view**) | `undo_semantic_overweight` / `undo_structured_overweight` **2장으로 분할** |
 | `escape_plateau_shallower_swap` | swap 깊이 + **`weight_semantic`** | 깊이만 |
 
-그리고 `measure_recipes.py`가 **필드가 2개 이상인 카드는 각 필드를 혼자서도 재서**
+그리고 `measure.py rules`가 **필드가 2개 이상인 카드는 각 필드를 혼자서도 재서**
 기여를 분해하게 했다. 부분합과 bundle의 차이를 상호작용으로 찍는다. 그 분해가 바로
 두 가지를 잡았다.
 
@@ -930,7 +930,7 @@ bge-m3가 그 비교에서 이겼고 **셋 중 8192를 읽는 것은 bge-m3뿐**
 
 ### 사전 추출은 바뀌지 않았다 — 처음부터 세 필드였다
 
-`build_cases.py:82`에서 `doc_field`(색인 본문)와 `meta_fields`(추출 범위)는 **별개
+`build.py cases:82`에서 `doc_field`(색인 본문)와 `meta_fields`(추출 범위)는 **별개
 인자**이고, `--meta-fields` 기본값은 처음부터 `("Fact","Reason","Result")`였다.
 재빌드 후 채움률이 옛 표와 소수점까지 같다(LeCaRDv2 99.9/99.8, COLIEE 87.3/89.7,
 LEGAR 100/61.6).
@@ -945,7 +945,7 @@ LEGAR 100/61.6).
 재측정 1단계에서 죽었다:
 
 ```
-fusion_sweep.py:71  row[name] = m["NDCG@30"]
+fusion_measure.py grid:71  row[name] = m["NDCG@30"]
 KeyError: 'NDCG@30'
 ```
 
@@ -971,7 +971,7 @@ Axis B를 폐기한 뒤(§6) 옛 쿼리 파일에 `difficulty_class`가 없으�
 | 승계 조건 | `LABEL_KEYS[:3]` → `REQUIRED = ("legal_class","category","fold")` |
 | 0건일 때 | 조용히 넘어가는 대신 `!! N/M queries have NO classification labels` + 실행할 명령을 찍는다 |
 
-`classify_queries.py --all`로 복원해 네 데이터셋 모두 §5 표와 일치함을 확인했다
+`build.py classify --all`로 복원해 네 데이터셋 모두 §5 표와 일치함을 확인했다
 (576/64/160, 79/8/20, 1151/127/400, 4339/429/1192, `legal_class` 100%).
 
 **교훈이 두 개다.** 하나는 **폐기한 것을 전제로 남겨 두면 그것이 조용한 게이트가
@@ -1169,7 +1169,7 @@ weight_keyword   25/25
 
 ### 조치 — 측정이 먼저다
 
-1. **BM25 깊이·가중치를 train에서 sweep** (`measure_recipes.py`와 같은 방식:
+1. **BM25 깊이·가중치를 train에서 sweep** (`measure.py rules`와 같은 방식:
    trigger 상태에서, paired bootstrap CI)
 2. 그 결과로 **사다리에 `keyword` 축 추가** — 깊이와 가중치, 다른 축과 같은 양방향 구조
 3. 측정 전에는 레벨 값이 `unmeasured`이므로 **정체 시에만 노출**된다(§18의 2티어).
@@ -1197,7 +1197,7 @@ arm C의 혼잡 필드 회수가 `fusion_mode`·`semantic_top_k`를 막고 있�
 | 폐기 실험 디렉터리 11개 (2.1MB) | 이름에 `VOID`/`invalid`/`_v2`/`_v4`/`_v5`/`_fixed`를 붙여 둔 것들 |
 | `evolution_stepcap/` (49MB) | §17 2×2. **누출된 레시피 수치로 돌아 쓸 수 없다고 결론**낸 실행이다. 재실행은 수치 교체 후 |
 | `llm_taxonomy.py` + `cache/llm_taxonomy/` | LLM 기반 분류 시도. 규칙 기반(`KO_OFFICIAL_RULES`·`zh_chapter`)으로 대체돼 아무것도 import하지 않고 산출물도 읽히지 않았다 |
-| `smoke_retrieval.py` | step-0 스모크 테스트. `trace.py`가 같은 일을 더 자세히 한다 |
+| `smoke_retrieval.py` | step-0 스모크 테스트. `runs.py trace`가 같은 일을 더 자세히 한다 |
 
 `llm_taxonomy.py`는 **문서에 기록된 음성 결과**였으므로(README·PROGRESS의 모듈 표),
 그 줄을 지우지 않고 "결론은 남기고 코드는 지웠다"로 고쳤다. 코드를 지우는 것과 결과를
@@ -1209,7 +1209,7 @@ arm C의 혼잡 필드 회수가 `fusion_mode`·`semantic_top_k`를 막고 있�
 - `raw_results.jsonl` 108개(약 1.2GB) — 용량의 대부분이지만 **쿼리별 순위와 어느 view가
   찾았는지**가 들어 있다. `config_scored`로 재실행하면 복원되지만 **그때의 코드에서만**
   같은 값이 나오므로, 코드를 여러 번 바꾼 지금은 그 시점의 유일한 증거다. 판단을 미룬다
-- `sweep.py` — 대체됐지만 METHODOLOGY 772행이 `--use-pool` 기본값 설명에서 인용한다.
+- `measure.py grid` — 대체됐지만 METHODOLOGY 772행이 `--use-pool` 기본값 설명에서 인용한다.
   지우려면 그 줄도 같이 고쳐야 한다
 
 ### 함께 발견한 것 — 그림 파일이 없다
@@ -1544,7 +1544,7 @@ CoT만 넣는다. 페르소나("BM25 전문가", "임베딩 회의론자")는 **
 ### 질문: LLM이 레시피를 쓰기 시작하면 통제가 되는가
 
 §20의 관문은 **점 추정 하나**였다 — `delta > +0.003`. 그것이 얼마나 느슨한지 쟀다
-(`scratchpad/noise_floor.py`, LeCaRDv2 train-dev n=106, 부트스트랩 B=2000):
+(`scratchpad/measure.py (floor)`, LeCaRDv2 train-dev n=106, 부트스트랩 B=2000):
 
 | 검사 | 결과 |
 |---|---|
@@ -1806,12 +1806,12 @@ n=106이라는 것을 LLM이 볼 수 있어야 한다.
 
 ## 19. 예시로 보는 두 루프 (2026-11-02)
 
-두 루프가 겹쳐 있는 구조는 말로는 간단하고 그려 보면 헷갈린다. `trace.py`가 **실제
+두 루프가 겹쳐 있는 구조는 말로는 간단하고 그려 보면 헷갈린다. `runs.py trace`가 **실제
 코드 경로로** 한 쿼리와 한 실행을 찍어 준다 — 숫자를 만들어 넣은 것이 아니라
 `evaluate.py`·`legal_evolve.py`가 쓰는 함수를 그대로 호출한다.
 
 ```
-python3 trace.py --dataset LeCaRDv2 --split val --nth 0 \
+python3 runs.py trace --dataset LeCaRDv2 --split val --nth 0 \
                  --run-dir evolution_percat/A3_시장질서
 ```
 
@@ -1898,7 +1898,7 @@ A3_시장질서, §18에서 본 그 실행이다.
 
 **`delta`는 직전 라운드가 아니라 incumbent best 대비다.** r2의 0.4041은 r1의 0.1340보다
 +0.2701이지만 **최고점(0.4761) 대비 −0.0720**이므로 거부다. 직전 라운드와 비교하면
-거부된 라운드에서의 복구가 수락처럼 보인다 — `trace.py`를 처음 쓸 때 내가 그렇게
+거부된 라운드에서의 복구가 수락처럼 보인다 — `runs.py trace`를 처음 쓸 때 내가 그렇게
 찍었다가 고쳤다.
 
 **`moved`는 그 라운드로 들어간 변경이다.** `round_N.json`의 `config`는 **N+1이 돌릴**
@@ -1956,7 +1956,7 @@ undo 카드의 대상 vs θ₀
 A3에서 **−0.3421**이었다. **A3에는 semantic을 끄는 것이 정답인데, pool에 그 말을 할 수
 있는 카드가 없다.**
 
-A3의 실제 라운드 기록이 그 결과다 (`trace.py`):
+A3의 실제 라운드 기록이 그 결과다 (`runs.py trace`):
 
 ```
    r   score    delta  verdict  recipe                         moved
@@ -2335,7 +2335,7 @@ LEGAR가 양수로 나오면 언어별로 갈린다는 뜻이지만, 그때도 *
 
 ### train 최고가 val로 전이되지 않는다 — 세 클래스에서 동일
 
-`select_on_val.py`가 고른 라운드는 **세 클래스 모두 round_0**이고, train 최고
+`runs.py select`가 고른 라운드는 **세 클래스 모두 round_0**이고, train 최고
 라운드는 셋 다 아니었다.
 
 | 클래스 | train 최고 | 그 라운드의 Δval | 선택된 r0의 Δval |
@@ -2386,7 +2386,7 @@ semantic view가 그 클래스에서 BM25 상위를 밀어내 버린다는 뜻�
 
 클래스별 결과를 **실제로 적용**하려면 각 클래스의 선택 설정을 base 대비 차이로 바꿔
 `per_category_overrides`에 넣어야 한다. 그 연결 코드가 없었다 — 진화만 클래스별이고
-결과는 디렉터리에 흩어진 채였다. `assemble_percat.py`가 그 일을 한다.
+결과는 디렉터리에 흩어진 채였다. `runs.py percat`가 그 일을 한다.
 
 선택 설정이 base와 같은 클래스(A3·A5·A6)는 override 없이 base로 떨어지고, 셋만 남는다:
 
@@ -2447,7 +2447,7 @@ A4의 +0.0299는 쿼리 1~2건일 수 있고, 가중 평균 +0.0079도 같은 �
 r1과 r3의 기록이 같았던 이유: 둘 다 거부되어 `ret_config`가 같은 incumbent로 되돌려진
 뒤 덤프됐다. **점수는 그 라운드 것이고 설정은 다음 라운드 것인** 기록이다.
 
-**`select_on_val.py`의 선택은 영향받지 않는다** — 기록된 f1을 믿지 않고 config를 직접
+**`runs.py select`의 선택은 영향받지 않는다** — 기록된 f1을 믿지 않고 config를 직접
 재채점하며, 후보 집합도 같다(θ₀은 별도 행으로 들어간다). **라벨만 틀린다.** 다만
 라운드 번호로 원인을 추적하려는 사람은 전부 한 칸 어긋난 설정을 보게 된다.
 
@@ -2822,7 +2822,7 @@ LEGAR:  all 12698 diagnosis calls OK     ← 12,698회
 |---|---|
 | `MIN_COMPLETION_TOKENS` 하한을 진단 경로에만 | 8192 하한이 512를 요청하는 쿼리당 호출에도 걸렸다 |
 | `httpx`/`httpcore`/`openai` 로거를 WARNING | 호출마다 한 줄씩 쌓여(138KB) 진행 로그를 덮었고, 그 때문에 30분간 "진행 없음"으로 오독했다 |
-| `--legal-class` (`legal_evolve.py`·`select_on_val.py`·`evaluate.py`) | 카테고리별 진화용 |
+| `--legal-class` (`legal_evolve.py`·`runs.py select`·`evaluate.py`) | 카테고리별 진화용 |
 
 ## 2026-10-30 (3) — §14 네 수정 적용, LeCaRDv2부터 재실행
 
@@ -2859,7 +2859,7 @@ LEGAR:  all 12698 diagnosis calls OK     ← 12,698회
 
 ### 프로세스 정리에서 반복된 실수
 
-진화를 죽이면 래퍼 셸이 다음 단계(`select_on_val.py`)로 넘어가 새 프로세스를 띄운다.
+진화를 죽이면 래퍼 셸이 다음 단계(`runs.py select`)로 넘어가 새 프로세스를 띄운다.
 세 번째로 겪었다(1804923 → 2486011 → 2598275). **래퍼와 자식을 함께 죽이고 그 뒤에도
 한 번 더 확인해야 한다.** `pkill -f`는 다른 사용자 프로세스를 죽일 수 있어 쓰지 않는다.
 
@@ -2923,7 +2923,7 @@ METHODOLOGY §13에 기록.
 
 ## 2026-10-30 — 공식 split 첫 실행은 무효, 원인은 context 초과
 
-`run_official.sh`(네 데이터셋 × 7라운드 + `select_on_val.py`)가 완주했으나
+`run_official.sh`(네 데이터셋 × 7라운드 + `runs.py select`)가 완주했으나
 **결과를 버렸다.** `evolution_official_vllm32k_invalid/`로 보존.
 
 ### 증상
@@ -2982,7 +2982,7 @@ METHODOLOGY §13에 기록.
 |---|---|
 | `memories/` | `corpus/` |
 | `{ds}_memories.json` · `{ds}_memories_m3.npy` | `{ds}_cases.json` · `{ds}_cases_m3.npy` |
-| `build_memories.py` | `build_cases.py` |
+| `build_memories.py` | `build.py cases` |
 | `MEM_DIR` · `MEM` | `CASE_DIR` |
 | `persons` · `entities` | `parties` · `legal_refs` |
 | structured view · entity-swap view | **metadata view** · **party-strip view** |
@@ -3067,7 +3067,7 @@ LLM이 "다른 view는 소용없다"로 읽었다. 네 view를 전부 나열하�
   `--resume`으로 이어받기. 기본 off라 기존 동작 불변
 - **`--seed`** — `temperature=0`만으로 재현되지 않음을 확인(라운드1 상태가 소수점 6자리까지
   같은 두 실행이 다른 라운드2 제안을 냄). seed로 좁히되 닫지는 못함
-- **`select_on_val.py`** — 라운드별 설정을 val에서 재채점, "train·val 양쪽에서 θ₀ 초과 중
+- **`runs.py select`** — 라운드별 설정을 val에서 재채점, "train·val 양쪽에서 θ₀ 초과 중
   val 최고"로 선택. 진화 루프는 train만 보므로 누출 없음
 - **`diagnosis.set_todo_items()` · `set_extra_context()`** — 프롬프트 섹션을 어댑터가 제어
 
@@ -3396,7 +3396,7 @@ gold ID는 `reference` 문자열(`"GOLD id[요약] ; ..."`)을 **파싱해서** 
 세 장(`swap_depth_shallow`, `undo_structured_overweight`,
 `undo_semantic_overweight`)은 **숫자가 아예 없다.** §28에서 분할·신설된 카드라
 `recipe_lifts.json`의 8장 측정에 들어 있지 않다. 올바른 동작이지만, LLM이
-증거 있는 6장과 증거 없는 3장을 함께 보게 된다. `measure_recipes.py` 재실행이
+증거 있는 6장과 증거 없는 3장을 함께 보게 된다. `measure.py rules` 재실행이
 필요한 별도 항목.
 
 ---
@@ -3596,7 +3596,7 @@ add = contrib(rank, s) * w
 완충이었다.
 
 (확인 하나: `weight_semantic` 정답지는 `semantic_top_k=100`에서 훑은 값이다
-— `weight_sweep.py:33`. 기반 카드의 깊이와 같으므로 그 최적값들은 카드가 만드는
+— `weight_measure.py grid:33`. 기반 카드의 깊이와 같으므로 그 최적값들은 카드가 만드는
 상태에 대해 유효하고, 깊이를 바꾸면 다시 열린다.)
 
 ### 필요 없으면 지운다 — 하나만 해당됐다
@@ -3760,7 +3760,7 @@ trigger는 `structured_top_k > 0 and weight_structured > 0.3`인데 아무 카�
 검색은 **결정론적**이다. 같은 (질의, 설정)은 항상 같은 점수를 낸다 — 평균으로
 지울 실행 간 분산이 없다. 불확실성은 다른 데 있다: **이 train fold는 질의의 한
 표본**이고, 여기서 잰 델타가 다른 질의에서도 성립할지는 별개다. 그걸 재는 것이
-질의에 대한 paired bootstrap이고, `measure_recipes.py`가 이미 카드마다 돌려
+질의에 대한 paired bootstrap이고, `measure.py rules`가 이미 카드마다 돌려
 `recipe_lifts.json`에 CI95를 남겨 두었다. **그 구간의 반폭이 임계값이 넘어야 하는
 양이다.**
 
@@ -4107,13 +4107,13 @@ OK: every assertion holds
 모든 변이 함수 안의 지역 import였기 때문에만 돌아갔다. 이름 충돌 둘은 역할로
 구분했다: `install` → `install_recipe_text`, `check` → `check_recipe_text`.
 
-**2. `fusion_sweep.py` + 스크래치패드 3개 → `sweep.py --grid`**
+**2. `fusion_measure.py grid` + 스크래치패드 3개 → `measure.py grid --grid`**
 
 | 그리드 | 하던 곳 | 하는 일 |
 |---|---|---|
-| `classes` | `sweep.py` | 클래스별 승자, 전역 대비 oracle 이득 |
-| `fusion` | `fusion_sweep.py` | §8의 7설정 |
-| `weight` | **스크래치패드** `weight_sweep.py` | `weight_semantic` 정답지 |
+| `classes` | `measure.py grid` | 클래스별 승자, 전역 대비 oracle 이득 |
+| `fusion` | `fusion_measure.py grid` | §8의 7설정 |
+| `weight` | **스크래치패드** `weight_measure.py grid` | `weight_semantic` 정답지 |
 | `weight-edge` | **스크래치패드** `weight_edge.py` | 그 grid의 양쪽 바깥 |
 
 뒤의 둘이 중요했다. **문서 전체가 인용하는 정답지의 생성기가 `/tmp`에 있었고
@@ -4140,7 +4140,7 @@ OK: every assertion holds
 
 ### 그 과정에서 저지른 일: `recipe_lifts.json`을 날렸다
 
-머지가 import를 깨지 않았는지 보려고 `measure_recipes.py`를 **그냥 돌렸다.**
+머지가 import를 깨지 않았는지 보려고 `measure.py rules`를 **그냥 돌렸다.**
 그것은 읽기 전용 확인이 아니라 `recipe_lifts.json`을 쓰는 명령이었고,
 **네 데이터셋 행 중 셋이 사라졌다.** 손실은 조용하고 완전하다 —
 `noise_floor`가 셋에 대해 0.0을 돌려주고, 그러면 §35에서 내가 넣은 가드 때문에
@@ -4384,7 +4384,7 @@ view가 이름 없는 쿼리를 보게** 하고 θ₀(BM25 단독)에서 paired 
 판례가 아니라 지명만 동일한 완전 다른 판례일 수 있는데."*
 
 맞는 논리다. 그래서 넓은 목록을 네 성분으로 쪼개 각각 쟀다
-(`strip_components.py`, LeCaRDv2 train, noise floor 0.0050):
+(`measure.py strip`, LeCaRDv2 train, noise floor 0.0050):
 
 | 삭제 대상 | Δ | CI95 | 판정 |
 |---|---|---|---|
@@ -4445,7 +4445,7 @@ LeCaRDv2는 99%에서 −0.0171이다.
 ### 내가 오늘 두 번째로 만든 같은 버그
 
 정규식을 고쳤는데 **측정이 변하지 않아서** 수정이 들었는지 의심했다. 들지 않았다 —
-`strip_components.py`가 추출 로직을 **복제**해서 첫 글자 검사를 쓰고 있었고,
+`measure.py strip`가 추출 로직을 **복제**해서 첫 글자 검사를 쓰고 있었고,
 `legal_meta.py`의 수정이 측정에 닿지 않았다. `各乡镇`이 span 목록에 그대로 있는 것이
 그 증거였다.
 
@@ -4470,7 +4470,7 @@ LEGAR는 당사자가 `A`·`B`·`C`로 익명화돼 있어 **이름 자체에 �
 
 ### 기록
 
-`strip_components.py`를 프로젝트에 남겼다(2026-11-12에 `strip_primary.py`를 흡수했다 — 그 두 변형이 성분 표의 첫 행과 마지막 행이라 엄격한 부분집합이었다). 스크래치패드에 두면 §39에서 겪은 것과 같은
+`measure.py strip`를 프로젝트에 남겼다(2026-11-12에 `strip_primary.py`를 흡수했다 — 그 두 변형이 성분 표의 첫 행과 마지막 행이라 엄격한 부분집합이었다). 스크래치패드에 두면 §39에서 겪은 것과 같은
 일이 된다 — 문서가 인용하는 숫자의 생성기가 세션과 함께 사라진다.
 
 §4는 다시 썼다. 표의 오탐 비대칭은 **맞는 관찰이므로 남기고**, 그것이 답하지 않는
@@ -4835,7 +4835,7 @@ LeCaRDv2 train 120건, 기반 `rrf + semantic_top_k=100 + weight_semantic=0.3`:
 **rewrite가 +0.0161이다.** 카드에 적힌 +0.0088의 거의 두 배이고, 전에는 그 숫자가
 "BM25 텍스트 확장 **−** semantic view 소거"의 순합이었다. 이제 단일 필드 레버가 자기가
 말하는 것을 측정한 숫자를 갖는다 — 단, 위 120건은 카드의 트리거 기반이 아니므로
-`measure_recipes.py` 재실행이 필요하다.
+`measure.py rules` 재실행이 필요하다.
 
 swap은 +0.0004로 여전히 죽어 있다(§8과 일치).
 
@@ -4892,7 +4892,7 @@ A를 쓸 때는 `SEMANTIC_USES_ROW_TEXT = False`로 뒤집고 같은 명령을 �
 LeCaRDv2만 rewrite 캐시가 있으므로 **800건 인코딩**이면 된다.
 
 기계는 이미 있다 — `verify.py --write`(실제 경로에서 수집),
-`build_embeddings.py --derived`(인코딩), `build_index`(개수 불일치면 `ValueError`).
+`build.py embed --derived`(인코딩), `build_index`(개수 불일치면 `ValueError`).
 `--gate`는 D에서 **선계산 없이 통과**한다(LeCaRD 네 설정 전부 "벡터 없음 0").
 
 오늘의 증거는 그 질문이 값을 치를 가치가 낮다고 말한다 — 정답 문서가 쿼리의

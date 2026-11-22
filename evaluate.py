@@ -65,7 +65,7 @@ def weak_config() -> RetrievalConfig:
     # depth the view GETS when something switches it on, and the engine's
     # default is 10 -- so an `enable_entity_swap: True` proposal that says
     # nothing about depth would silently land on the one value measured to
-    # be worst. Every view's depth is 100 (sweep.py --grid depth).
+    # be worst. Every view's depth is 100 (measure.py grid --grid depth).
     return RetrievalConfig(
         fusion_mode="keyword_only", keyword_top_k=100, semantic_top_k=0,
         structured_top_k=0, max_context=100, enable_entity_swap=False,

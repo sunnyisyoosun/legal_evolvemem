@@ -14,7 +14,7 @@
 
 ### 지금 위치 (2026-11-22)
 
-**돌고 있는 것** — `noise_floor.py`가 LeCaRDv2 → COLIEE → LEGAR_stricter의 수용 임계값을
+**돌고 있는 것** — `measure.py floor`가 LeCaRDv2 → COLIEE → LEGAR_stricter의 수용 임계값을
 재고 있다(LeCaRD는 완료: **0.0103**). 데이터셋마다 즉시 기록하므로 중간에 끊겨도 끝난
 것은 남는다.
 
@@ -30,7 +30,7 @@ $V verify.py                                            # 네 데이터셋 게�
 $V legal_evolve.py --dataset LeCaRDv2 --split train --rounds 7 \
     --recipes bundles \
     --base-url https://openrouter.ai/api/v1 --model openai/gpt-oss-120b
-$V select_on_val.py --dataset LeCaRDv2 --dir evolution_official --write
+$V runs.py select --dataset LeCaRDv2 --dir evolution_official --write
 ```
 
 진단 LLM은 **OpenRouter / `openai/gpt-oss-120b`**이고 키는 실행 시
@@ -55,11 +55,11 @@ $V select_on_val.py --dataset LeCaRDv2 --dir evolution_official --write
 | **등록부의 빈칸** | 질의를 바꾸는 레버 둘이 **모두 삭제**다. BM25는 문서에 있는 용어만 매칭하므로 삭제만으로는 재현율이 구조적으로 오르지 않는다 — rewrite의 +0.0009 CI∋0은 레버가 약한 게 아니라 **상한**이다 |
 | **레시피 세 타입** | `Recipe` 하나가 세 일을 담고 있었다 → **Bundle**(필드 집합, 값 없음) · **Constraint**(금지 상태) · **Rule**(재작성 텍스트). 5장 → **1+1+1**. 단일 필드 Bundle은 **생성 자체가 안 된다**(`__post_init__`) |
 | **Bundle cap seam** | Bundle은 값이 없어 벤더 `Recipe`로 변환이 **원리적으로 불가능**하다. shim(`proposal={}`)으로 이름만 받고, 우리 엔진이 `cap' = cap + |제안 ∩ 번들 필드|`로 넓힌다. 벤더 포크 없음 |
-| **floor 출처 교체** | 수용 임계값이 `measure_recipes.py`가 **마침 측정해 둔 카드들**의 CI 중앙값이었다 — pool의 성질이지 데이터셋의 성질이 아니다. 그 숫자를 만든 카드 8장 중 **3장은 이미 존재하지 않았다**. 고정 **설정 쌍 13개**로 교체(`noise_floor.py`), LeCaRD **0.0228 → 0.0103** |
+| **floor 출처 교체** | 수용 임계값이 `measure.py rules`가 **마침 측정해 둔 카드들**의 CI 중앙값이었다 — pool의 성질이지 데이터셋의 성질이 아니다. 그 숫자를 만든 카드 8장 중 **3장은 이미 존재하지 않았다**. 고정 **설정 쌍 13개**로 교체(`measure.py floor`), LeCaRD **0.0228 → 0.0103** |
 | **`measure_recipes` 축소** | 207 → **151줄**, Rule 전용. "설정 둘 채점 → paired bootstrap"이 **세 군데** 복사돼 있던 것을 `recipe_learning.measure_pair()`로 합쳤다 |
 | **Axis B 잔재 제거** | 8,545 쿼리 행에 `difficulty_class`가 **0개**인데 함수·분기·캐리 목록이 남아 있었다. `LABEL_KEYS`와 `REQUIRED`가 같은 튜플이 되어 하나로 |
 | **파일 정리** | `levers.py`+`recipes.py` → **`registry.py`** (Rule의 좌표 불변식이 두 파일에 걸쳐 있었다). 6개 파일에 복사돼 있던 로딩 블록 → `evaluate.load_fold()` |
-| **긴 작업이 결과를 잃던 결함** | `noise_floor.py`·`measure_recipes.py`가 **전체 루프 끝에 한 번** 기록해서, 중단되면 끝난 데이터셋까지 날아갔다(실제로 한 번 겪었다) → 데이터셋마다 기록 |
+| **긴 작업이 결과를 잃던 결함** | `measure.py floor`·`measure.py rules`가 **전체 루프 끝에 한 번** 기록해서, 중단되면 끝난 데이터셋까지 날아갔다(실제로 한 번 겪었다) → 데이터셋마다 기록 |
 | **문서 정리** | METHODOLOGY 결론 표 49행이 changelog가 돼 있었다 → 지형/측정/구조 셋으로 나누고 날짜 붙은 정정 13행은 JOURNAL §50으로. 같은 표 안의 **모순**(party-strip "죽었다" vs "판정 철회") 해소, 존재하지 않는 `JOURNAL §49` 참조 4건 수정 |
 
 ### 그 전 (2026-11-12~13)
@@ -80,7 +80,7 @@ $V select_on_val.py --dataset LeCaRDv2 --dir evolution_official --write
 | **프롬프트 사실 오류** | 상수 하나가 두 일을 했다 — 루프의 라운드당 한도(**2**)와 카드가 담을 필드 수(**5**)가 같은 `MAX_FIELDS`. LLM에게 "라운드당 5개 바꿀 수 있다"고 알려주고 있었고, **레시피의 논거 자체가 그 숫자**다. `STEP_CAP=2` 분리 |
 | **`weak_config` 함정** | `entity_swap_keyword_k`를 안 써서 엔진 기본값 **10**으로 떨어졌다. 깊이를 말하지 않은 제안이 **측정상 최악의 값에 조용히 착지**한다 → 100 |
 | **플래그 통합** | `--no-recipes`+`--learned-recipes` → **`--recipes {hand,learned,both,none}`**. 전자는 상호 배타여서 "학습된 카드만"이 **도달 불가**였다 |
-| **파일 정리** | 25 → **19개**. `random_arm.py`·`legal_recipes.py` 삭제, `verify_prompt`+`derived_queries`→`verify.py`, `strip_primary`→`strip_components`, `fusion_sweep`→`sweep.py --grid` |
+| **파일 정리** | 25 → **19개**. `random_arm.py`·`legal_recipes.py` 삭제, `verify_prompt`+`derived_queries`→`verify.py`, `strip_primary`→`strip_components`, `fusion_sweep`→`measure.py grid --grid` |
 
 ### 다음 순서
 
@@ -176,7 +176,7 @@ LeCaRD는 쿼리당 후보 100개를 주고 그것을 재랭킹하는 것이 공
 코퍼스 검색**이다. 한쪽만 pool을 쓰면 서로 다른 과제의 숫자를 같은 표에 올리게 된다.
 **네 데이터셋 모두 전체 코퍼스로 통일**한다.
 
-`evaluate.py` · `sweep.py` · `legal_evolve.py` 모두 **`--use-pool` 기본 off**이고, 켜면
+`evaluate.py` · `measure.py grid` · `legal_evolve.py` 모두 **`--use-pool` 기본 off**이고, 켜면
 LeCaRD 공식 프로토콜을 재현한다(참고용).
 
 ### θ₀ (Fact-only, BM25-only, test split, **전체 코퍼스**)
@@ -216,13 +216,13 @@ LeCaRD 0.8254 / 0.6427, COLIEE 0.2531, LEGAR 0.0598.
 | 파일 | 역할 |
 |---|---|
 | `legal_meta.py` | 규칙 기반 메타데이터 추출(법조문·죄명·당사자·법원·날짜), 한자 숫자 정규화, `Crime` 필드 해석, `DOC_FIELD_OF` |
-| `build_cases.py` | 판례/쿼리 → 검색 단위 dict (`--dataset` / `--all`). *당시 이름 `build_memories.py`* |
+| `build.py cases` | 판례/쿼리 → 검색 단위 dict (`--dataset` / `--all`). *당시 이름 `build_memories.py`* |
 | `legal_retriever.py` | `LegalIndex`(토크나이저 주입·pool 마스킹·doc_id 역매핑), `build_index`, `search` |
 | `legal_taxonomy.py` | 2축 분류(형법 장 / BM25 난이도), 합성 카테고리 |
-| `classify_queries.py` | 쿼리에 분류 라벨 부착, 난이도 경계는 train에서만 적합 |
-| `build_embeddings.py` | 다국어 임베딩 선계산 (`--model`, `--tag`) |
+| `build.py classify` | 쿼리에 분류 라벨 부착, 난이도 경계는 train에서만 적합 |
+| `build.py embed` | 다국어 임베딩 선계산 (`--model`, `--tag`) |
 | `evaluate.py` | 단일 설정 평가 + run 파일 덤프 |
-| `sweep.py` | 설정 비교, 클래스별 최적 탐색, `--fit-apply` 일반화 검증 |
+| `measure.py grid` | 설정 비교, 클래스별 최적 탐색, `--fit-apply` 일반화 검증 |
 | `legal_evolve.py` | EvolveMem 진화 루프를 검색 과제로 — 어댑터·seam·진단 컨텍스트 |
 | `query_rewrite.py` | LLM 쿼리 재작성(언어별 프롬프트) + 확장/RRF 비교 |
 | ~~`llm_taxonomy.py`~~ | LLM 분류 실험. **중국어에서 규칙이 우월해 미채택이고, 2026-11-09에 파일을 삭제했다** — 결론은 여기 남기고 코드는 지웠다 |
@@ -247,7 +247,7 @@ LeCaRD 0.8254 / 0.6427, COLIEE 0.2531, LEGAR 0.0598.
 - 중국어 인명 정규식 `{2,4}` 탐욕 매칭이 동사까지 포획 (`莫新国酒后驾驶` → `莫新国酒`). entity-swap에 치명적.
 - 중국어 죄명 비탐욕 매칭이 복합 죄명을 절단 (`掩饰、隐瞒犯罪` + `罪所得收益罪`).
   탐욕 매칭으로 바꾸니 변별력 lift가 1.0% → 33.9%로 상승.
-- `build_cases.py`(당시 `build_memories.py`)가 쿼리 파일을 덮어써서 **분류 라벨이 지워진다**. `_carry_labels()`로 이전
+- `build.py cases`(당시 `build_memories.py`)가 쿼리 파일을 덮어써서 **분류 라벨이 지워진다**. `_carry_labels()`로 이전
   빌드의 라벨을 승계하도록 고쳤다(세 번 겪은 뒤).
 - 한국어 법조문 정규식 `[가-힣]{2,25}?법`이 법 앞에 2글자를 요구해 **`형법`이 원천적으로 매칭
   불가**였다. 한국 형사판결에서 가장 많이 인용되는 법이다. LEGAR 문서 법조문 45% → 100%.
@@ -484,21 +484,21 @@ V=/home/yoosun/legal/.venv-evolve/bin/python
 cd /home/yoosun/legal/evolve_legal
 
 # 1. 메모리 변환 (이전 빌드의 분류 라벨을 승계한다)
-$V build_cases.py --all
+$V build.py cases --all
 
 # 2. 쿼리 분류 (Axis A)
-$V classify_queries.py --all
+$V build.py classify --all
 
 # 3. 임베딩 (HF_HOME 필수, GPU 지정)
-HF_HOME=/home/yoosun/.cache/hf $V build_embeddings.py --dataset LeCaRDv2 --queries --device cuda:2
+HF_HOME=/home/yoosun/.cache/hf $V build.py embed --dataset LeCaRDv2 --queries --device cuda:2
 
 # 4. 단일 설정 평가 + run 파일 (pool 기본 off = 전체 코퍼스)
 $V evaluate.py --dataset LeCaRDv2 --out runs/LeCaRDv2_bm25_test.json
 $V evaluate.py --dataset LeCaRD --use-pool    # LeCaRD 공식 프로토콜 재현(참고용)
 
 # 5. 설정 비교 / 클래스별 최적 / 일반화 검증
-$V sweep.py --dataset LeCaRDv2 --split train --min-n 20
-$V sweep.py --dataset LeCaRDv2 --fit-apply
+$V measure.py grid --dataset LeCaRDv2 --split train --min-n 20
+$V measure.py grid --dataset LeCaRDv2 --fit-apply
 
 # 6. 진단 LLM 서버 (우리 것: GPU 1, 포트 8000. 포트 8002는 다른 사용자 것 — 쓰지 말 것)
 cd /home/yoosun/legal

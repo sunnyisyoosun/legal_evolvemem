@@ -122,7 +122,7 @@ party-strip은 **질의 텍스트를 바꾸고(삭제) 다시 검색한 결과**
 무엇을 켤 가치가 있는지 스스로 찾게 한다.
 
 BM25는 항상 켜져 있으므로 **조합은 나머지 셋의 on/off = 8가지**다(1+3+3+1). 사람이
-재는 격자(`sweep.py --grid fusion`)는 그 8가지를 전부 덮지만, **가중치를 각각 한 값에
+재는 격자(`measure.py grid --grid fusion`)는 그 8가지를 전부 덮지만, **가중치를 각각 한 값에
 고정한 얇은 단면**이다 — `weight_semantic`의 최적값만 데이터셋마다 0.1~2.0으로 20배
 벌어진다. 격자는 채점용 정답지이고, 8가지 × fusion × 가중치의 전체 공간에 **어느 축이
 중요한지 듣지 않고** 도달하는 것이 loop의 과제다.
@@ -188,7 +188,7 @@ JOURNAL §50으로 옮겼다(2026-11-22).
 |---|---|---|
 | **지표의 의미** | **NDCG@30이 넷에서 다른 과제를 잰다.** 쿼리당 정답 수 중앙값 LeCaRD 29 / LeCaRDv2 **30** / COLIEE 3 / LEGAR **1** — 30배 차이. LeCaRDv2는 60%의 쿼리에서 만점 = precision@30 1.0(ordering 과제), LEGAR는 사실상 MRR. 모든 표가 네 Δ를 나란히 놓고 읽어 왔다 — **결정 필요** | JOURNAL §42 |
 | 수용 임계값 | `0.003`은 엔진 기본값이고 **네 중 셋에서 noise floor보다 낮았다** (LeCaRD 7.7배). 즉 잡음을 수락하고 있었다. 데이터셋별 **측정된 noise floor**로 바꿨다. **값은 이 문서에 적지 않는다** — `noise_floor.json`이 유일한 출처이고, 실행이 그 값과 출처를 함께 찍는다. 문서에 박아 둔 숫자는 두 번 낡았다(§35의 넷 → 카드 기반 폴백 → 설정 쌍) | §5, JOURNAL §35 |
-| **floor의 출처를 바꿨다 (2026-11-22)** | 그 floor는 `recipe_lifts.json`, 즉 **`measure_recipes.py`가 마침 측정해 둔 카드들**의 CI 중앙값이었다. 두 가지가 틀렸다 — (1) **pool의 성질이지 데이터셋의 성질이 아니다**: 살아 있던 숫자를 만든 카드 8장 중 **3장은 이미 존재하지 않았고**(`escape_plateau_shallower_swap`·`undo_auxiliary_overweight`·`undo_query_decomposition`) 2026-11-22에 3장이 더 지워졌다. LeCaRD의 0.0228은 카드 둘의 중앙값이고 그중 하나가 §48이 오독이라 판정한 `undo_chapter_filter`다. (2) **카드는 편향 표본이다** — 카드는 "누군가 도움이 되리라 본 수"라 몇 필드에 몰린다. 이제 **고정된 설정 쌍 13개**로 잰다(`noise_floor.py` → `noise_floor.json`): pool에 독립이고, 쌍을 늘릴수록 **좋아진다**(옛 방식은 pool이 줄수록 나빠졌다). 실측 LeCaRD **0.0228 → 0.0103**(옛 값은 이상치 둘이 중앙값을 끌어올린 것). `verify.py`가 **폴백이 쓰이면 실행을 막는다** | §5 |
+| **floor의 출처를 바꿨다 (2026-11-22)** | 그 floor는 `recipe_lifts.json`, 즉 **`measure.py rules`가 마침 측정해 둔 카드들**의 CI 중앙값이었다. 두 가지가 틀렸다 — (1) **pool의 성질이지 데이터셋의 성질이 아니다**: 살아 있던 숫자를 만든 카드 8장 중 **3장은 이미 존재하지 않았고**(`escape_plateau_shallower_swap`·`undo_auxiliary_overweight`·`undo_query_decomposition`) 2026-11-22에 3장이 더 지워졌다. LeCaRD의 0.0228은 카드 둘의 중앙값이고 그중 하나가 §48이 오독이라 판정한 `undo_chapter_filter`다. (2) **카드는 편향 표본이다** — 카드는 "누군가 도움이 되리라 본 수"라 몇 필드에 몰린다. 이제 **고정된 설정 쌍 13개**로 잰다(`measure.py floor` → `noise_floor.json`): pool에 독립이고, 쌍을 늘릴수록 **좋아진다**(옛 방식은 pool이 줄수록 나빠졌다). 실측 LeCaRD **0.0228 → 0.0103**(옛 값은 이상치 둘이 중앙값을 끌어올린 것). `verify.py`가 **폴백이 쓰이면 실행을 막는다** | §5 |
 | LeCaRD 해상도 | 107질의 = train 79 / **val 8** / **test 20**. train noise floor 2.40 pp > 최선의 알려진 수 2.09 pp, val Δ 구간 **±14 pp**, test 약 ±10 pp. **원데이터이므로 fold는 그대로 두고 보고를 바꿨다** — 모든 숫자가 CI를 달고, val 선택은 '순위'로 명시 | JOURNAL §35~36 |
 | **test fold** | **깨끗하지 않다 — 이미 채점됐다.** §8의 네 데이터셋 표(7설정 × 4)가 **test fold**에서 나왔고(LeCaRDv2 160 / LeCaRD 20 / COLIEE 398 / LEGAR 1161), 거기서 얻은 "⑤가 1위"가 레시피와 진단 프롬프트로 들어갔다. 원인은 `evaluate.py`의 `--split` 기본값이 **`test`** 였다는 것 — 문장 하나로 막으려 했으나 `--split test`는 그냥 또 하나의 문자열이었다. 지금은 **벽**이다: `in_split`이 test·`all`·`None`을 `ALLOW_TEST=1` 없이 거부하고, 기본값은 train이다. §8은 train으로 다시 재서 교체하고, test는 봉인한다 | §5, §8, §10.1 |
 | **test 가드** | `in_split()`이 `test`·`all`·`None`을 `ALLOW_TEST=1` 없이 거부한다. 문서의 문장은 막지 못했다 — `evaluate.py --split` **기본값이 `test`** 였고 그래서 §8이 test에서 돌았다. 기본값도 `train`으로 | §5, JOURNAL §46 |
@@ -449,7 +449,7 @@ EvolveMem은 **대화 메모리** 어휘로 쓰여 있다(`persons`, `entities`,
 `initial_memories=`(kwarg). 레포 전역이라 바꾸면 회귀 위험이 크고, 여기 매핑 한 줄로 족하다.
 
 디스크도 같이 바꿨다: `memories/` → **`corpus/`**, `{ds}_memories.json` → **`{ds}_cases.json`**,
-`{ds}_memories_m3.npy` → **`{ds}_cases_m3.npy`**, `build_memories.py` → **`build_cases.py`**,
+`{ds}_memories_m3.npy` → **`{ds}_cases_m3.npy`**, `build_memories.py` → **`build.py cases`**,
 `MEM_DIR` → **`CASE_DIR`**. `doc_id`와 중복이던 `memory_id` 필드는 **제거**했다(읽기 폴백은
 남겨 구버전 파일도 열린다).
 
@@ -516,7 +516,7 @@ hits  = retrieve_multiview(index, text, config=cfg, category=cat)
 
 **1. 덮어쓰기는 차이분만 담는다.** 전체 설정을 카테고리마다 복제하지 않고 base 대비
 **다른 필드만** 넣는다. 개선이 없던 클래스는 override가 없고 자동으로 base로 떨어진다.
-`assemble_percat.py`가 클래스별 진화 결과를 이 형태로 바꿔 넣는다.
+`runs.py percat`가 클래스별 진화 결과를 이 형태로 바꿔 넣는다.
 
 **2. 적용 후 맵을 비운다.** `resolve_config`가 돌려주는 설정의
 `per_category_overrides`는 `{}`다. 엔진이 같은 필드에서 override를 **다시** 해석하므로,
@@ -561,7 +561,7 @@ return {"keywords": keywords[:15], "persons": capitalized, "entities": capitaliz
 
 #### "사전 추출 메타데이터"란
 
-`build_cases.py`가 `legal_meta.py`의 규칙 기반 추출(정규식)을 **쿼리 본문에도** 돌려
+`build.py cases`가 `legal_meta.py`의 규칙 기반 추출(정규식)을 **쿼리 본문에도** 돌려
 `corpus/{ds}_queries.json`에 저장해 둔 것이다. 실제 한 건:
 
 ```
@@ -1018,7 +1018,7 @@ party-strip은 이름을 지운 쿼리로 **별도 검색**을 한 뒤 fusion에
 기여하지 않는다.
 
 **2. 지명이 단독 최대 원인이고, 과삭제 때문이 아니다.** 넓은 목록을 네 성분으로
-쪼개 각각 재면(`strip_components.py`, LeCaRDv2 train):
+쪼개 각각 재면(`measure.py strip`, LeCaRDv2 train):
 
 | 삭제 대상 | Δ | CI95 | 판정 |
 |---|---|---|---|
@@ -1566,7 +1566,7 @@ cap' = cap + |{LLM이 이번 라운드에 제안한 필드} ∩ {번들의 필�
 
 > **남은 반영**: `diagnosis_prompts.py`의 블록 분리(선택지 / 규칙 — 지금 번들 설명은
 > 레시피 자리에 그대로 들어간다), `recipe_learning.admit`의 두 경로 분기(Bundle=상호작용
-> 검정 · Rule=효과 검정). **`measure_recipes.py`는 2026-11-22에 Rule 전용으로
+> 검정 · Rule=효과 검정). **`measure.py rules`는 2026-11-22에 Rule 전용으로
 > 축소됐다**(207 → 151줄, `rule_lifts.json`을 쓴다).
 > 그리고 **step-cap 회계 예외**(§3 B의 `fusion_mode` 2칸)는 아직 없다 — 지금 번들이
 > 그 의존을 cap 쪽에서 우회하고 있을 뿐이다.
@@ -1810,7 +1810,7 @@ pool (손 5장 / 학습된 n장 / 둘 다 / 빈 pool — `--recipes`)
 
 COLIEE·LEGAR는 세 fold가 거의 같고, LeCaRD만 fold 간 편차가 크다(8건 때문).
 
-### 라운드 선택은 val에서 한다 (`select_on_val.py`)
+### 라운드 선택은 val에서 한다 (`runs.py select`)
 
 진화 루프 자체는 **train만** 본다(누출 없음). 엔진은 train 최고 라운드를 고르는데, 그것이
 전이되는 라운드라는 보장이 없다. 라운드별 설정이 `round_N.json`에 전부 남아 있으므로
@@ -1823,12 +1823,12 @@ train 조건을 같이 거는 이유는 val이 작기 때문이다 — 한두 �
 val만 보면 운 좋은 라운드를 고르게 된다. 두 기준의 결과를 `best_config.json`(train)과
 `best_config_val.json`(val)으로 **나란히 남겨** 갈리는지 본다.
 - 네 데이터셋 **동일 전처리**(`Fact`+`Reason`+`Result`를 색인, 세 필드 보유 문서만).
-  2026-11-10에 `Fact`만 색인하던 것을 세 필드 전부로 바꿨다(`DOC_FIELD_OF = "all"`). **메타데이터 추출(`legal_refs`·`parties`)은 처음부터 세 필드 전부를 훑었으므로** (`build_cases.py:82`, `--meta-fields` 기본값) 이 변경으로 추출 결과는 달라지지 않았다 — 달라진 것은 BM25·semantic이 읽는 본문뿐이다. 바꾸기 전에는 **메타데이터 view가 BM25가 볼 수 없는 `Reason`·`Result`의 조문까지 매칭**하는 비대칭이 있었고, 지금은 사라졌다.
+  2026-11-10에 `Fact`만 색인하던 것을 세 필드 전부로 바꿨다(`DOC_FIELD_OF = "all"`). **메타데이터 추출(`legal_refs`·`parties`)은 처음부터 세 필드 전부를 훑었으므로** (`build.py cases:82`, `--meta-fields` 기본값) 이 변경으로 추출 결과는 달라지지 않았다 — 달라진 것은 BM25·semantic이 읽는 본문뿐이다. 바꾸기 전에는 **메타데이터 view가 BM25가 볼 수 없는 `Reason`·`Result`의 조문까지 매칭**하는 비대칭이 있었고, 지금은 사라졌다.
   데이터셋마다 입력 텍스트가 다르면 프레임워크 비교가 교란된다.
 - **pool 마스킹을 쓰지 않는다**(2026-10-29 결정). LeCaRD의 공식 과제는 쿼리당 후보 100개
   재랭킹이지만 나머지 셋은 전체 코퍼스 검색이다. 한쪽만 pool을 쓰면 **서로 다른 과제의 숫자를
   같은 표에 올리게 된다** — LeCaRD θ₀가 전체 코퍼스 0.6427에서 subpool 0.8254로 뛴다.
-  `evaluate.py` · `sweep.py` · `legal_evolve.py` 모두 `--use-pool` **기본 off**이고,
+  `evaluate.py` · `measure.py grid` · `legal_evolve.py` 모두 `--use-pool` **기본 off**이고,
   켜면 공식 프로토콜을 재현한다(참고용).
 
 ### noise floor — 카드가 아니라 설정 쌍에서 (2026-11-22)
@@ -1842,7 +1842,7 @@ val만 보면 운 좋은 라운드를 고르게 된다. 두 기준의 결과를 
 
 | | 옛 방식 (~2026-11-22) | 지금 |
 |---|---|---|
-| 쌍의 출처 | `measure_recipes.py`가 측정한 **레시피 카드** | **고정된 설정 쌍 13개** (`noise_floor.py`) |
+| 쌍의 출처 | `measure.py rules`가 측정한 **레시피 카드** | **고정된 설정 쌍 13개** (`measure.py floor`) |
 | 의존 | pool — 카드가 들고 나면 임계값이 움직인다 | 없음 |
 | 표본 수가 늘면 | pool이 줄수록 **나빠진다** | 쌍을 늘릴수록 **좋아진다** |
 | 편향 | 카드는 "도움이 되리라 본 수"라 몇 필드에 몰린다 | 두 기반(θ₀ · 융합 상태) × 한 필드 이동 |
@@ -2081,7 +2081,7 @@ if meta_plan.new_dimension_proposal:                              # 파일에 �
 
 아래 두 표가 현재 유효한 지형이다. 그 아래의 옛 절들은 역사 기록이다.
 
-**fusion 7설정** (`sweep.py --grid fusion --split train`)
+**fusion 7설정** (`measure.py grid --grid fusion --split train`)
 
 | 설정 | LeCaRDv2 | LeCaRD | COLIEE | LEGAR |
 |---|---|---|---|---|

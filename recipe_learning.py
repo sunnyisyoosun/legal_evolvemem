@@ -158,7 +158,7 @@ ENUMS = {
 # shown to the diagnosis LLM as a measured fact. The base has to be a config
 # someone could plausibly be in, not the weakest one that satisfies the text.
 # Per-view candidate depth is 100 everywhere. Measured on train, all
-# four datasets (sweep.py --grid depth / --grid swap-depth):
+# four datasets (measure.py grid --grid depth / --grid swap-depth):
 #   k=30  loses most of the semantic view's gain (LeCaRDv2 +0.0140
 #         -> +0.0042; LeCaRD falls back to theta_0)
 #   k=100 is the knee
@@ -225,7 +225,7 @@ DEV_FRACTION = 0.2
 # the caller passes `noise_floor(dataset)`.
 
 # A point estimate over 106 queries is not a decision. Measured on
-# LeCaRDv2 train-dev (scratchpad/noise_floor.py, 2026-11-02):
+# LeCaRDv2 train-dev (scratchpad/measure.py (floor), 2026-11-02):
 #
 #   12 RANDOM configurations, nothing proposed them  ->  4 of 12 cleared
 #   the +0.003 threshold, median |delta| 0.0085
@@ -670,7 +670,6 @@ def as_recipes(store: dict | None = None,
 
 LIFTS = os.path.join(HERE, "recipe_lifts.json")
 FLOORS = os.path.join(HERE, "noise_floor.json")
-RULE_LIFTS = os.path.join(HERE, "rule_lifts.json")
 
 
 def noise_floor(dataset: str) -> tuple[float, str]:
@@ -698,7 +697,7 @@ def noise_floor(dataset: str) -> tuple[float, str]:
     same, so there is no run-to-run variance to average out. The uncertainty
     is that this train fold is ONE SAMPLE OF QUERIES -- a delta measured on
     it may not hold on others. The paired bootstrap over queries is what
-    measures that, and `measure_recipes.py` already ran it for every card:
+    measures that, and `measure.py rules` already ran it for every card:
     `recipe_lifts.json` stores a CI95 per card per dataset. The half-width of
     those intervals is the quantity an acceptance threshold has to clear.
 
@@ -708,11 +707,11 @@ def noise_floor(dataset: str) -> tuple[float, str]:
     nothing.
 
     WHERE the comparisons come from changed on 2026-11-22. They used to be
-    the recipe cards `measure_recipes.py` happened to have measured, which
+    the recipe cards `measure.py rules` happened to have measured, which
     made the threshold a property of the POOL: of the eight cards behind the
     live numbers, three no longer existed and three more were removed that
     day, and cards are a biased sample anyway (a card is a move someone
-    thought would help). They are now fixed CONFIG PAIRS -- `noise_floor.py`
+    thought would help). They are now fixed CONFIG PAIRS -- `measure.py floor`
     -- which depend on no pool and get better with more pairs instead of
     worse as the pool shrinks.
 
@@ -720,7 +719,7 @@ def noise_floor(dataset: str) -> tuple[float, str]:
     not run the estimator yet keeps its old behaviour, and the provenance
     string says which source answered. Rebuild with:
 
-        python3 noise_floor.py --datasets <ds>
+        python3 measure.py floor --datasets <ds>
 
     Returns (threshold, provenance). Raises nothing: a dataset with no row
     gets (0.0, reason) and the caller decides what to do about it.
@@ -733,7 +732,7 @@ def noise_floor(dataset: str) -> tuple[float, str]:
             return (row["floor"],
                     f"median CI95 half-width over {row['usable_pairs']} "
                     f"config pairs on {dataset} {row['split']} "
-                    f"(n={row['n']}, noise_floor.py)")
+                    f"(n={row['n']}, measure.py (floor))")
     except (OSError, ValueError):
         pass
     try:
@@ -760,106 +759,7 @@ def noise_floor(dataset: str) -> tuple[float, str]:
     return (round(med, 5),
             f"FALLBACK card-derived floor: median CI95 half-width over "
             f"{len(widths)} recipe cards on {dataset} {row['split']} "
-            f"(n={row['n']}) -- run noise_floor.py to replace it")
-
-
-def apply_measured_lifts(dataset: str) -> tuple[int, int]:
-    """Overwrite the hand-written `expected_lift_pp` with train measurements.
-
-    The eight values in RECIPES_LEGAL were typed in from the sweep in
-    METHODOLOGY 8, which ran on TEST. They are not inert: the diagnosis
-    prompt renders them as "(expected +N pp)", so the leak has been steering
-    every round. measure_recipes.py re-measures on TRAIN with a paired
-    bootstrap CI.
-
-    Source changed on 2026-11-22: `rule_lifts.json`, not `recipe_lifts.json`.
-    After the type split only a Rule has a lift -- a Bundle carries no values
-    and so has no delta to measure -- and measure_recipes.py no longer
-    re-measures the hand-written cards. The frozen card table is NOT read
-    here on purpose: a number nobody re-measures is exactly the leak this
-    function exists to close, and `set_show_unmeasured_lift(False)` means an
-    unmeasured card simply shows no figure.
-
-    A card gets 0.0 unless three things hold, and the note says which one
-    failed: the paired CI clears zero, the mean clears the same 0.003 floor
-    elitism uses, and the END STATE beats theta_0. The third was missing and
-    mattered: a card is measured from the state its own trigger accepts
-    (section 22), so the lift is CONDITIONAL, not additive -- on LeCaRD train,
-    undo_chapter_filter climbed 0.4677 -> 0.6241 and claimed +15.65 pp while
-    theta_0 is 0.6637. Climbing out of a hole the trigger state put you in is
-    not a gain. That is not a claim the card is useless -- it is the refusal
-    to show a number we cannot support (section 21).
-
-    The lift is per DATASET, because one number cannot be right for four
-    corpora in three languages: the same lever flipped sign between query
-    classes of a single dataset (section 15), let alone across them.
-
-    Returns (cards updated, cards whose claim was zeroed).
-    """
-    from evolvemem import evolution_cookbook as CB
-    try:
-        with open(RULE_LIFTS, encoding="utf-8") as f:
-            table = json.load(f)
-    except (OSError, ValueError):
-        return (0, 0)
-    row = table.get(dataset)
-    if not row:
-        return (0, 0)
-    n_set = n_zero = 0
-    for r in CB.RECIPE_POOLS.get("legal_retrieval", []):
-        m = row.get("rules", {}).get(r.name)
-        if not m:
-            continue
-        r.expected_lift_pp = m["claim_pp"]
-        # The prose of these descriptions is also full of pp figures from the
-        # same test-fold sweep ("k=30 measured +1.1 pp", "appending once
-        # measured +1.3 pp"). Replacing only `expected_lift_pp` would leave
-        # those in the prompt looking equally measured. They are not
-        # re-measurable from this script -- each is its own sweep -- so the
-        # note says which figure is the measured one rather than pretending
-        # the rest are.
-        prov = (f" [measured {m['delta'] * 100:+.1f} pp on {dataset} "
-                f"{row['split']}, n={row['n']}, CI95 "
-                f"[{m['ci95'][0] * 100:+.1f}, {m['ci95'][1] * 100:+.1f}] pp"
-                + (f"; no gain claimed -- {m['zero_reason']}" if
-                   m["claim_pp"] == 0.0 and m.get("zero_reason") else
-                   "; interval includes 0, so no gain is claimed" if
-                   m["claim_pp"] == 0.0 else "")
-                + (f". End state {m['vs_theta0']:+.4f} vs theta_0"
-                   if "vs_theta0" in m else "")
-                + ". Any pp figures in the text above predate this. They "
-                  "came from a sweep on the TEST fold AND on the old corpus "
-                  "(Fact only, embeddings truncated at 512 tokens), whose "
-                  "view ranking has since reversed -- the semantic view is now "
-                  "the strongest single addition, and the swap view measures "
-                  "nothing. Trust only this bracketed figure.]")
-        # Strip a provenance note from an earlier call so repeated installs
-        # do not stack them.
-        r.description = re.sub(r"\s*\[measured [^\]]*\]\s*$", "",
-                               r.description) + prov
-        # Marks the number as measured FOR THIS DATASET. Without it the
-        # renderer prints no figure at all, which is the point: a hand-typed
-        # value rendered as "(expected +N pp)" reads to the LLM exactly like
-        # a measured one, and the nine hand-typed values were ordered the
-        # inverse of what matters (evolution_cookbook.format_recipes_for_
-        # prompt has the audit).
-        # Both figures. The conditional delta alone overstated the card:
-        # entity_swap_shallow reads +4.57 pp from its trigger base on LeCaRD
-        # train while the state it lands in is only +0.61 pp above theta_0,
-        # and the header is what a temperature-0 model selects on.
-        import diagnosis_prompts as _DP
-        if m["claim_pp"] == 0.0:
-            r.lift_source = _DP.t("recipe.src_zero").format(
-                ds=dataset, split=row["split"], n=row["n"],
-                why=_DP.zero_reason(m.get("zero_reason")) or
-                    _DP.t("recipe.zero_ci"))
-        else:
-            r.lift_source = _DP.t("recipe.src_gain").format(
-                pp=m["claim_pp"], end=m.get("vs_theta0", 0.0) * 100,
-                ds=dataset, split=row["split"], n=row["n"])
-        n_set += 1
-        n_zero += m["claim_pp"] == 0.0
-    return (n_set, n_zero)
+            f"(n={row['n']}) -- run measure.py (floor) to replace it")
 
 
 def install(extend: bool = True, dataset: str | None = None) -> int:

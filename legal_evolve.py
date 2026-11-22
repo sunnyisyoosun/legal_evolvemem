@@ -624,7 +624,7 @@ _UNCHOSEN = (
     # ruled out per-category from a global measurement, and per-category is
     # still unmeasured. What is removed is the nudge, not the option.
     #
-    # entity_swap_keyword_k STAYS, and it is now MEASURED (sweep.py --grid
+    # entity_swap_keyword_k STAYS, and it is now MEASURED (measure.py grid --grid
     # swap-depth, train, base rrf+sem): off / 10 / 30 / 100 gives
     #   LeCaRDv2 +0.0140 / +0.0125 / +0.0118 / +0.0161
     #   LeCaRD   +0.0134 / +0.0139 / +0.0172 / +0.0191
@@ -1139,7 +1139,7 @@ def main():
             print(f"!! acceptance threshold: {thr_why}. Cannot derive a "
                   f"noise floor, so the run would fall back to the engine's "
                   f"0.003 -- a number measured on a different benchmark. "
-                  f"Run noise_floor.py --datasets {a.dataset} first, or "
+                  f"Run measure.py floor --datasets {a.dataset} first, or "
                   f"pass --acceptance-threshold explicitly.", flush=True)
             sys.exit(2)
     elif a.acceptance_threshold == "engine":
@@ -1166,24 +1166,13 @@ def main():
         update_rule=a.update_rule,
         tau_rev=a.tau_rev,
     )
-    if a.recipes != "none":
-        # The hand-written lifts came from TEST. Overwrite them with the
-        # train measurements for THIS dataset before the pool is ever
-        # rendered into a prompt (recipe_learning.apply_measured_lifts).
-        import recipe_learning as _RL
-        n_set, n_zero = _RL.apply_measured_lifts(a.dataset)
-        if n_set:
-            print(f"recipe lifts: {n_set} card(s) re-measured on "
-                  f"{a.dataset} train, {n_zero} with CI including 0 "
-                  f"(no gain claimed)", flush=True)
-        else:
-            print("rule lifts: no rule_lifts.json row for "
-                  f"{a.dataset} -- the cards will carry NO pp figure in the "
-                  "prompt. That is the intended fallback, not a silent one: "
-                  "a hand-typed lift renders identically to a measured one, "
-                  "so the renderer prints a number only when something "
-                  "measured it on this dataset (measure_recipes.py)",
-                  flush=True)
+    # No lift figures are written into the pool any more. `apply_measured_lifts`
+    # existed to overwrite hand-typed lifts (which came from TEST) with train
+    # measurements, and it matched cards by name -- but after the type split
+    # the only measurable thing is a Rule, whose names do not intersect the
+    # hand pool's at all, so the function could never match. The renderer's
+    # `set_show_unmeasured_lift(False)` already does what it was protecting:
+    # a card nobody measured on this dataset prints no number.
 
     # Order matters: empty first, then add, or "learned" would keep the hand
     # pool underneath it.

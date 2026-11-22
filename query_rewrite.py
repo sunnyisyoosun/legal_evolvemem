@@ -65,7 +65,7 @@ def rewrite_all(llm, dataset: str, rows: list[dict], lang: str,
         json.dump(cache, open(cache_path, "w", encoding="utf-8"), ensure_ascii=False)
         # Which rule produced this cache. The cache is keyed by query id, so
         # a pool change leaves every old rewrite in place under a new rule
-        # and nothing notices; measure_recipes.py refuses to attribute a
+        # and nothing notices; measure.py (rules) refuses to attribute a
         # measurement to a rule the stamp does not name.
         with open(os.path.splitext(cache_path)[0] + ".stamp", "w",
                   encoding="utf-8") as f:

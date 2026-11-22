@@ -1,35 +1,239 @@
-"""Score a named grid of configurations over a split.
+"""Score configurations on a fold and report what separates them.
 
-Three grids, one runner. They were three places before: `sweep.py` (per-class
-winners), `fusion_sweep.py` (the seven fusion settings of METHODOLOGY 8), and
-a pair of one-off scripts in a session scratchpad that produced the
-`weight_semantic` answer key of JOURNAL 28 -- numbers that are quoted all
-over the docs while their generator lived in /tmp and would have vanished
-with the session.
+    python3 measure.py floor                      # acceptance threshold
+    python3 measure.py rules  --datasets LeCaRDv2 # a rewriting rule's lift
+    python3 measure.py grid   --dataset LeCaRDv2 --grid fusion
+    python3 measure.py strip  --dataset LeCaRDv2  # what each strip component costs
 
-    python sweep.py --grid classes --dataset LeCaRDv2      # per-class winner
-    python sweep.py --grid fusion  --split train           # all 4 datasets
-    python sweep.py --grid weight  --split train           # the answer key
-    python sweep.py --grid weight-edge --split train       # its boundaries
+Four jobs, one operation: score two (or N) configurations on the same
+queries and read the per-query differences. They were four scripts with the
+same argparse, the same per-dataset loop and the same merge-write, which is
+where `recipe_learning.measure_pair` came from.
 
-`classes` answers "is per_category_overrides worth having" -- it reports the
-winner per legal class and the oracle gain over one global config, which is
-the precondition for the whole per-category approach. It takes one dataset.
-
-`fusion`, `weight` and `weight-edge` answer "what does this axis look like"
-and run over every dataset, printing a delta against theta_0 per setting.
-
-A boundary grid exists because a maximum at the edge of a grid is not a
-maximum: three of the four datasets peaked at an end of the first
-`weight_semantic` grid, so `weight-edge` extends past both ends.
+What each one answers
+---------------------
+floor  the smallest delta this fold can tell apart. Fixed config pairs, NOT
+       recipe cards -- a card-derived threshold is a property of the pool and
+       moved whenever a card was added or removed (METHODOLOGY 5).
+rules  a Rule's lift. After the type split only a Rule has one: a Bundle
+       carries no values, so there is no delta to take.
+grid   a named grid of configurations, the hand-run answer key the loop is
+       scored against. NOT an input to the loop -- putting its conclusions
+       into a card is the circularity METHODOLOGY 10.1 warns about.
+strip  which component of the strip list (persons / orgs / places) costs
+       what, measured separately rather than as one switch.
 """
 from __future__ import annotations
-import argparse, collections, json, os, statistics as st, sys
-
+import sys, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+import argparse, json, os, statistics as st, sys, time
+from dataclasses import replace
+import legal_retriever as L                      # noqa: E402
+import recipe_learning as RL                     # noqa: E402
+import registry as REG                           # noqa: E402
+import query_rewrite as QR                       # noqa: E402
+from evaluate import load_fold, per_query, weak_config   # noqa: E402
+from legal_meta import LANG_OF                   # noqa: E402
+import argparse, collections, json, os, statistics as st, sys
 import legal_retriever as L
 from evolvemem.multi_retriever import RetrievalConfig
 from evaluate import CASE_DIR, QRELS, load_pool, EVAL_K, in_split
+import argparse, json, os, re, statistics as st, sys
+import legal_meta as LM
+import recipe_learning as RL
+from evaluate import EVAL_K, PRIMARY, load_fold, weak_config
+from legal_meta import LANG_OF
+
+
+# ======================================================================
+# measure.py — Measure something on a fold: the acceptance threshold, or a rule's lift.
+# ======================================================================
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+FLOOR_OUT = os.path.join(HERE, "noise_floor.json")
+RULE_OUT = os.path.join(HERE, "rule_lifts.json")
+
+# A fused state that is not theta_0. Half the floor pairs start here so the
+# estimate is not only "deltas away from the starting point", and the rule
+# measurement uses it because at theta_0 the semantic view is off and fusion
+# does nothing -- a lexical rewrite measured there is measured against a
+# configuration no tuned run would hold. Depths are all 100 (JOURNAL 47).
+FUSED = {"fusion_mode": "rrf", "semantic_top_k": 100, "structured_top_k": 100,
+         "enable_entity_swap": True, "entity_swap_keyword_k": 100,
+         "weight_semantic": 0.3, "weight_structured": 0.1}
+
+# (label, base, change). One field moved to another value a run could
+# plausibly hold -- not a boundary, and not a value chosen to be inert. Fixed
+# rather than sampled so two runs on the same corpus return the same
+# threshold; a threshold that moves on its own is the problem this replaced.
+PAIRS: list[tuple[str, str, dict]] = [
+    ("sem_on",            "t0",    {"semantic_top_k": 100, "fusion_mode": "rrf",
+                                    "weight_semantic": 0.3}),
+    ("struct_on",         "t0",    {"structured_top_k": 100, "fusion_mode": "rrf",
+                                    "weight_structured": 0.1}),
+    ("swap_on",           "t0",    {"enable_entity_swap": True,
+                                    "entity_swap_keyword_k": 100,
+                                    "fusion_mode": "rrf"}),
+    ("kw_depth_100_50",   "t0",    {"keyword_top_k": 50}),
+    ("chapter_filter",    "t0",    {"enable_chapter_filter": True}),
+    ("fusion_rrf_ws",     "fused", {"fusion_mode": "weighted_sum"}),
+    ("w_sem_.3_.6",       "fused", {"weight_semantic": 0.6}),
+    ("w_kw_1.0_0.8",      "fused", {"weight_keyword": 0.8}),
+    ("w_struct_.1_.5",    "fused", {"weight_structured": 0.5}),
+    ("swap_depth_100_30", "fused", {"entity_swap_keyword_k": 30}),
+    ("sem_depth_100_30",  "fused", {"semantic_top_k": 30}),
+    ("mmr_on",            "fused", {"mmr_diversity_weight": 0.3}),
+    ("rewrite_on",        "fused", {"enable_query_rewrite": True}),
+]
+
+
+def _load_table(path: str) -> dict:
+    """Merge, never overwrite: one dataset's re-measurement must not delete
+    three others' rows. The loss is silent and makes `--acceptance-threshold
+    auto` refuse to start for the datasets that vanished."""
+    try:
+        return json.load(open(path, encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def _save(table: dict, path: str) -> None:
+    """Called after EVERY dataset, not once at the end. The first run of the
+    floor estimator was killed during the third of four and lost the two that
+    had finished -- hours of scoring for nothing. A long job that keeps its
+    results only in memory is a job that has to be run twice."""
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(table, f, ensure_ascii=False, indent=1)
+
+
+def run_floor(a) -> None:
+    table = _load_table(a.out)
+    for ds in a.datasets:
+        index, rows, labels = load_fold(ds, a.split)
+        print(f"[{ds}] {a.split} n={len(rows)}", flush=True)
+        t0cfg = weak_config()
+        bases = {"t0": t0cfg, "fused": replace(t0cfg, **FUSED)}
+        scored = {}
+        for name, cfg in bases.items():
+            t = time.time()
+            scored[name] = per_query(index, rows, labels, cfg)
+            print(f"  base {name:6s} {st.fmean(scored[name]):.4f} "
+                  f"({time.time() - t:.0f}s)", flush=True)
+
+        pairs_out, widths = {}, []
+        for label, base, change in PAIRS:
+            m = RL.measure_pair(index, rows, labels, bases[base], change,
+                                base_scores=scored[base])
+            hw = m["halfwidth"]
+            pairs_out[label] = {"base": base, "change": change,
+                                "delta": round(m["delta"], 5),
+                                "ci95": [round(m["ci95"][0], 5),
+                                         round(m["ci95"][1], 5)],
+                                "halfwidth": round(hw, 5)}
+            if hw > 1e-9:
+                widths.append(hw)
+                print(f"  {label:20s} delta {m['delta']:+.4f}  "
+                      f"halfwidth {hw:.5f}", flush=True)
+            else:
+                # Not a measurement of noise: nothing moved. Usually a lever
+                # that cannot act on this dataset (enable_query_rewrite has no
+                # cache outside LeCaRDv2), which inert_report also names.
+                print(f"  {label:20s} inert here (every per-query delta 0)",
+                      flush=True)
+
+        floor = round(st.median(widths), 5) if widths else 0.0
+        table[ds] = {"n": len(rows), "split": a.split, "floor": floor,
+                     "usable_pairs": len(widths), "pairs": pairs_out}
+        _save(table, a.out)
+        print(f"  -> floor {floor:.5f} (median of {len(widths)} "
+              f"non-degenerate half-widths), written\n", flush=True)
+    print(f"{a.out}: {', '.join(sorted(table))}")
+
+
+def _cache_provenance(ds: str) -> tuple[str, str]:
+    """(stamp on disk, note). Empty stamp means the cache predates stamping."""
+    try:
+        with open(os.path.join(L.REWRITE_DIR, f"{ds}.stamp"), encoding="utf-8") as f:
+            return (f.read().strip(), "")
+    except OSError:
+        return ("", f"no {ds}.stamp: cache predates stamping, assumed seed rule")
+
+
+def run_rules(a) -> None:
+    table = _load_table(a.out)
+    for ds in a.datasets:
+        if not L.load_rewrites(ds):
+            print(f"[{ds}] no rewrite cache -- the rule cannot act here, so "
+                  f"there is nothing to measure", flush=True)
+            continue
+        stamp, note = _cache_provenance(ds)
+        index, rows, labels = load_fold(ds, a.split)
+        floor, floor_src = RL.noise_floor(ds)
+        t0cfg = weak_config()
+        base_cfg = replace(t0cfg, **FUSED)
+        t0v = per_query(index, rows, labels, t0cfg)
+        t0mean = st.fmean(t0v)
+        print(f"[{ds}] {a.split} n={len(rows)}  theta_0 {t0mean:.4f}  "
+              f"floor {floor:.5f}\n  floor source: {floor_src}", flush=True)
+        if note:
+            print(f"  WARNING {note}", flush=True)
+
+        rows_out, base_scores = {}, None
+        for rule in REG.RULES:
+            expected = QR.cache_stamp(LANG_OF[ds])
+            if stamp and stamp != expected:
+                print(f"  {rule.name}: SKIPPED -- cache was built by {stamp!r}, "
+                      f"not {expected!r}", flush=True)
+                continue
+            t = time.time()
+            m = RL.measure_pair(index, rows, labels, base_cfg,
+                                {"enable_query_rewrite": True},
+                                base_scores=base_scores)
+            base_scores = m["base_scores"]
+            ok = (("ci", m["ci95"][0] > 0), ("size", m["delta"] > floor),
+                  ("<t0", m["after"] > t0mean))
+            claim = round(m["delta"] * 100, 2) if all(v for _, v in ok) else 0.0
+            why = "" if claim else " [" + ",".join(n for n, v in ok if not v) + "]"
+            rows_out[rule.name] = {
+                "delta": round(m["delta"], 5),
+                "ci95": [round(m["ci95"][0], 5), round(m["ci95"][1], 5)],
+                "base": round(m["base"], 4), "after": round(m["after"], 4),
+                "theta0": round(t0mean, 4),
+                "vs_theta0": round(m["after"] - t0mean, 4),
+                "claim_pp": claim, "measured_from": FUSED,
+                "cache_stamp": stamp or "(unstamped)",
+                "zero_reason": why.strip(" []"),
+            }
+            print(f"  {rule.name:24s} {m['delta']:+.4f}  CI95 "
+                  f"[{m['ci95'][0]:+.4f},{m['ci95'][1]:+.4f}]  "
+                  f"claim {claim:+.2f}pp{why}  ({time.time() - t:.0f}s)",
+                  flush=True)
+        table[ds] = {"n": len(rows), "split": a.split, "rules": rows_out}
+        _save(table, a.out)
+    print(f"{a.out}: {', '.join(sorted(table))}")
+
+
+def _cli_measure() -> int:
+    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    sub = ap.add_subparsers(dest="what", required=True)
+    for name, out, fn in (("floor", FLOOR_OUT, run_floor),
+                          ("rules", RULE_OUT, run_rules)):
+        p = sub.add_parser(name)
+        p.add_argument("--datasets", nargs="+",
+                       default=["LeCaRDv2", "LeCaRD", "COLIEE", "LEGAR_stricter"])
+        p.add_argument("--split", default="train",
+                       help="the fold the loop optimises on")
+        p.add_argument("--out", default=out)
+        p.set_defaults(fn=fn)
+    a = ap.parse_args()
+    a.fn(a)
+    return 0
+
+
+# ======================================================================
+# measure.py grid — Score a named grid of configurations over a split.
+# ======================================================================
 
 PRIMARY = "NDCG@30"
 
@@ -68,7 +272,7 @@ def grid_classes() -> dict[str, RetrievalConfig]:
 # default as a deliberate choice is the mistake that broke two recipes
 # (section 9).
 # Per-view candidate depth is 100 everywhere. Measured on train, all
-# four datasets (sweep.py --grid depth / --grid swap-depth):
+# four datasets (measure.py grid --grid depth / --grid swap-depth):
 #   k=30  loses most of the semantic view's gain (LeCaRDv2 +0.0140
 #         -> +0.0042; LeCaRD falls back to theta_0)
 #   k=100 is the knee
@@ -344,7 +548,7 @@ def fit_apply(a, qs, labels, pool, index):
 DATASETS = ["LeCaRDv2", "LeCaRD", "COLIEE", "LEGAR_stricter"]
 
 
-def main():
+def _cli_sweep():
     ap = argparse.ArgumentParser()
     ap.add_argument("--grid", default="classes", choices=sorted(GRIDS),
                     help="classes: per-class winner on ONE dataset (needs "
@@ -418,5 +622,125 @@ def main():
         print(f"  oracle per-class gain over global best: {gain_total/n_total:+.4f} {PRIMARY}")
 
 
+# ======================================================================
+# measure.py strip — Which part of the strip list costs the -0.0170 on LeCaRDv2?
+# ======================================================================
+
+def strip(text: str, spans) -> str:
+    out = text
+    for sp in sorted(spans, key=len, reverse=True):
+        out = out.replace(sp, "")
+    return re.sub(r"\s+", " ", out).strip(" ?.,")
+
+
+def components(row, text, lang):
+    """The four sources, kept apart instead of unioned.
+
+    org/place come from `legal_meta.extract_incidentals(by_kind=True)` -- the
+    real code path. An earlier version of this script re-ran the regexes
+    itself and the copy kept a first-character deictic test after the module
+    had moved to a whole-span one, so a fix to the extractor did not reach
+    the measurement at all (JOURNAL 41).
+    """
+    parties = [p for p in L.parties_of(row) if L.is_party_name(p, lang)]
+    kinds = LM.extract_incidentals(text, lang, by_kind=True)
+    loc = str(row.get("location") or "").strip()
+    court = [loc] if len(loc) >= 2 else []
+    keep = lambda xs: [x.strip() for x in xs if len(x.strip()) >= 2]
+    return {"parties": keep(parties), "org": keep(kinds["org"]),
+            "place": keep(kinds["place"]), "court": court}
+
+
+def _cli_strip_components():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("datasets", nargs="+",
+                    help="one or more datasets. Absorbed strip_primary.py on "
+                         "2026-11-12: its two variants ('parties only',"
+                         " 'parties+org+place') are the first and last rows "
+                         "of the component table below, measured from the "
+                         "same theta_0, so it was a strict subset")
+    ap.add_argument("--spans", type=int, default=12,
+                    help="how many worst-hurt queries to print spans for")
+    a = ap.parse_args()
+    for ds in a.datasets:
+        _one(ds, a.spans)
+
+
+def _one(ds: str, n_spans: int) -> None:
+    lang = LANG_OF[ds]
+
+    index, rows, labels = load_fold(ds, "train")
+    cfg = weak_config()
+    comp = {q["query_id"]: components(q, q["text"], lang) for q in rows}
+
+    def run(pick):
+        """pick: which component names to delete."""
+        out, used = [], 0
+        for q in rows:
+            sp = [s for k in pick for s in comp[q["query_id"]][k]]
+            used += bool(sp)
+            r = {**q, "text": strip(q["text"], sp)} if sp else q
+            ranked = L.search(index, r, cfg, top_n=30)
+            out.append(L.MBR.compute_query_metrics(
+                ranked, labels[q["query_id"]], EVAL_K)[PRIMARY])
+        return out, used
+
+    base, _ = run([])
+    thr, _ = RL.noise_floor(ds)
+    print(f"\n[{ds}] train n={len(rows)}  theta_0 = {st.fmean(base):.4f}  "
+          f"noise floor {thr:.4f}")
+    print(f"  {'삭제 대상':28s} {'점수':>7s} {'Δ':>9s}  {'CI95':>22s}  적용률")
+    results = {}
+    for name, pick in [
+        ("parties", ["parties"]),
+        ("parties+court", ["parties", "court"]),
+        ("parties+org", ["parties", "org"]),
+        ("parties+place", ["parties", "place"]),
+        ("parties+org+place+court", ["parties", "org", "place", "court"]),
+    ]:
+        v, used = run(pick)
+        d = [y - x for x, y in zip(base, v)]
+        lo, hi = RL.bootstrap_ci(d)
+        results[name] = (v, d)
+        mark = "악화" if hi < 0 else ("개선" if lo > 0 else "구분 불가")
+        print(f"  {name:28s} {st.fmean(v):7.4f} {st.fmean(d):+9.4f}  "
+              f"[{lo:+.4f},{hi:+.4f}]  {used}/{len(rows)}  {mark}")
+
+    if n_spans:
+        # the place-only variant is the one under suspicion
+        _, d = results["parties+place"]
+        order = sorted(range(len(rows)), key=lambda i: d[i])[:n_spans]
+        print(f"\n  가장 많이 떨어진 {n_spans}건 — place로 지워진 span")
+        for i in order:
+            q = rows[i]
+            pl = comp[q["query_id"]]["place"]
+            if not pl:
+                continue
+            print(f"   Δ={d[i]:+.4f}  place={pl}")
+            before = q["text"][:90].replace("\n", " ")
+            after = strip(q["text"], comp[q["query_id"]]["parties"] + pl)[:90]
+            print(f"      전: {before}")
+            print(f"      후: {after}")
+    del index
+
+
+# ── one entry point ───────────────────────────────────────────────────────
+STAGES = {"floor": None, "rules": None,
+          "grid": _cli_sweep, "strip": _cli_strip_components}
+
+
+def main() -> int:
+    if len(sys.argv) < 2 or sys.argv[1] not in STAGES:
+        print(__doc__)
+        return 2
+    stage, rest = sys.argv[1], sys.argv[2:]
+    if stage in ("floor", "rules"):
+        sys.argv = [f"measure.py {stage}", stage] + rest
+        return _cli_measure()
+    sys.argv = [f"measure.py {stage}"] + rest
+    STAGES[stage]()
+    return 0
+
+
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

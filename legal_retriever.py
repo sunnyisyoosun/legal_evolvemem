@@ -11,7 +11,7 @@ patched at its own seam rather than by forking the function:
    so EvolveMem and the baseline tokenise identically.
 2. Query analysis detects entities by capitalisation (multi_retriever.py:482),
    which does not exist in Chinese or Korean. `analyze_query` is swapped for one
-   that reads the metadata precomputed by build_cases.py.
+   that reads the metadata precomputed by build.py cases.
 3. There is no notion of a per-query candidate pool, which LeCaRD's official
    re-ranking protocol requires. Every view honours an index-level mask.
 """
@@ -848,7 +848,7 @@ def _check_embedding_text(mpath: str, cases: list[dict], dataset: str) -> None:
         raise ValueError(
             f"{dataset}: embeddings were built from {got:,} characters but the "
             f"corpus now holds {want:,} ({want / max(1, got):.1f}x). The "
-            f"indexed text changed -- re-run build_embeddings.py before using "
+            f"indexed text changed -- re-run build.py embed before using "
             f"the semantic view, or pass semantic=False.")
 
 
