@@ -7,19 +7,29 @@
 논문은 **대화 메모리 QA**(검색 → 답변 생성 → token-F1)를 전제하지만, 판례 검색은 **랭킹**이다.
 논문 세 층 중 §3.3 **자가진화 엔진만** 쓰고, §3.1 메모리 저장소는 버린다(판례는 이미 검색 단위다).
 
-**핵심 질문** — 사람이 하이퍼파라미터를 손으로 튜닝하는 것보다, LLM 진단 루프가 더 좋은
-검색 설정을 찾아낼 수 있는가.
+**핵심 질문** — LLM 진단 루프가 **데이터셋마다 다른 검색 설정에 스스로 도달하는가**, 그리고
+손으로 격자를 훑는 것보다 **싸게** 도달하는가.
 
-**현재 답** — 그렇다, 단 **레시피 풀을 채운 뒤에만**.
+이 질문은 한 번 고쳐 쓴 것이다. 예전 질문은 *"사람의 수동 튜닝보다 더 좋은 설정을 찾는가"*
+였고 README는 거기에 **"그렇다"**고 답하면서 아래 표를 걸고 있었다.
 
-| LeCaRDv2 NDCG@30 | train (640) | test (160) |
+| ~~LeCaRDv2 NDCG@30~~ | ~~train (640)~~ | ~~test (160)~~ |
 |---|---|---|
-| θ₀ (BM25 only) | 0.4040 | 0.3948 |
-| 수동 스윕 최고 | 0.4155 | 0.4057 (+0.0110) |
-| **진화 R2** | **0.4184** | **0.4101 (+0.0154)** |
+| ~~θ₀ (BM25 only)~~ | ~~0.4040~~ | ~~0.3948~~ |
+| ~~수동 스윕 최고~~ | ~~0.4155~~ | ~~0.4057~~ |
+| ~~진화 R2~~ | ~~0.4184~~ | ~~0.4101~~ |
 
-진화가 찾은 두 수(`weighted_sum → rrf`, `structured_top_k 0 → 10`)는 **사람의 수동 스윕이
-놓친 조합**이었다. 레시피 풀이 비어 있던 이전 4회 실행은 전부 R1에서 멈췄다.
+**그 표는 세 가지 이유로 철회됐다**(METHODOLOGY §10.1).
+
+1. **순환이다.** 저자가 수동 스윕의 결론을 레시피 카드에 압축해 넣었고, 루프가 그 카드를
+   적용했고, 그 결과를 수동 스윕과 비교했다. 진화가 실제로 더한 것은
+   `structured_top_k 0 → 10` **한 수**이고, `weighted_sum → rrf`는 **카드가 실어 온 것**이다.
+2. **test fold 산물이다.** 그 숫자는 test에서 나왔고 카드의 수치 자체도 test 스윕에서
+   왔다 — 누출된 사전 지식으로 test를 맞춘 기록이다.
+3. **임시 split이다.** train 640은 공식 fold(576/64/160)가 아니다.
+
+**현재 답** — 아직 없다. 루프는 2026-10-31 이후 돌지 않았고, 그 사이 액션 공간·수용
+임계값·레시피 구조가 모두 바뀌었다. 지금 상태는 [PROGRESS.md](PROGRESS.md)에 있다.
 
 ---
 
@@ -37,11 +47,6 @@
 ---
 
 ## 읽는 순서
-
-| 문서 | 내용 |
-|---|---|
-| **[METHODOLOGY.md](METHODOLOGY.md)** | **무엇을 어떻게 재는가**, 그리고 거기서 밝혀진 것. 설계 근거·검증 위계·법률 레시피 8장 |
-| [PROGRESS.md](PROGRESS.md) | 실험 기록. 원시 수치, 해결한 버그, 실행 명령 |
 
 구현 상세보다 **왜 그렇게 쟀는가**가 중요하므로 METHODOLOGY.md를 먼저 읽는 것이 좋다.
 
@@ -72,7 +77,9 @@ semantic view의 이득 대부분이 날아간다. 이 100은 반환 수 30(=NDC
 | `build_embeddings.py` | 다국어 임베딩 선계산 |
 | `evaluate.py` · `sweep.py` | 단일 설정 평가 / 설정 비교 · 일반화 검증. `--grid {classes,fusion,weight,weight-edge,swap-depth,depth}` |
 | `verify.py` | **실행 전 단일 관문** — 조립된 프롬프트와 semantic view 입력을 함께 단정 (`verify_prompt.py` + `derived_queries.py` 통합) |
-| `measure_recipes.py` · `strip_components.py` | 카드별 lift 측정 / 삭제 목록 성분별 측정 |
+| `registry.py` | **레버 등록부**(좌표 `(입력×채점)`) + **세 레시피 타입** `Bundle`/`Constraint`/`Rule` |
+| `noise_floor.py` | 데이터셋별 **수용 임계값** — 고정 설정 쌍 13개의 paired bootstrap CI 반폭 중앙값 |
+| `measure_recipes.py` · `strip_components.py` | **Rule**별 lift 측정 / 삭제 목록 성분별 측정 |
 | `learn_recipes.py` · `recipe_learning.py` | **LLM이 레시피를 제안하고 train-dev가 승인** — 측정·승인 기계와 제안 프롬프트 |
 | `select_on_val.py` | 진화 라운드별 설정을 **val에서 재채점·선택** |
 | **`legal_evolve.py`** | **진화 루프를 검색 과제로** — 어댑터 · 이음매 3개 · 진단 컨텍스트 |
@@ -99,8 +106,10 @@ HF_HOME=/home/yoosun/.cache/hf \
 
 $V verify.py                                    # 4. 실행 전 관문 (필수)
 $V evaluate.py --dataset LeCaRDv2 --split train --out runs/LeCaRDv2_bm25.json
+$V noise_floor.py --datasets LeCaRDv2                  # 5. 수용 임계값 (게이트가 요구한다)
 $V legal_evolve.py --dataset LeCaRDv2 --split train --rounds 7 \
-    --recipes hand --model qwen
+    --recipes bundles \
+    --base-url https://openrouter.ai/api/v1 --model openai/gpt-oss-120b
 $V select_on_val.py --dataset LeCaRDv2 --dir evolution_official --write  # val 기준 선택
 ```
 
@@ -109,10 +118,9 @@ $V select_on_val.py --dataset LeCaRDv2 --dir evolution_official --write  # val �
 > test에서 나왔다), 이제 코드가 막는다. `evaluate.py`의 `--split` 기본값도
 > `test` → `train`으로 바꿨다.
 
-진화 루프는 진단 LLM 서버가 필요하다. 전체 명령과 vLLM 기동은 [PROGRESS.md §8](PROGRESS.md) 참고.
-
-> **서버 주의** — 우리 vLLM은 **GPU 1 / 포트 8000**이다. **포트 8002는 다른 사용자의 서버**이므로
-> 요청을 보내지 말 것. 정리할 때 `pkill -f "vllm serve"`는 남의 프로세스까지 잡으므로 PID를 지정한다.
+진단 LLM은 **OpenRouter**로 결정됐다(2026-11-13). 자체 vLLM을 띄우지 않으므로 다른 사용자의
+GPU·포트를 건드리지 않는다. 키는 실행 시 `/home/yoosun/evolve/config.py`에서 읽고 **출력하지
+않는다**. `--recipes`는 `hand|learned|both|none|bundles` 중 하나다(§3의 2×2가 쓰는 축).
 
 ## 평가 규약
 
@@ -121,7 +129,7 @@ $V select_on_val.py --dataset LeCaRDv2 --dir evolution_official --write  # val �
 - 모든 실행이 run 파일(`{query_id: [doc_id,...]}`)을 남긴다 → 재검색 없이 재채점 가능.
 - **train / val / test 3단.** 진화는 train에서만, 확인·수정은 val에서, **test는 마지막 한 번**.
   네 벤치마크의 **공식 split**을 쓴다(`result/{ds}/query_structured.json`).
-- 네 데이터셋 **동일 전처리**: `Fact`만 색인, `Reason`+`Result`를 모두 가진 문서만.
+- 네 데이터셋 **동일 전처리**: `Fact`+`Reason`+`Result`를 색인(`DOC_FIELD_OF="all"`, 2026-11-10), 세 필드를 모두 가진 문서만. `Fact`만 색인하던 것을 바꾼 이 결정 하나가 COLIEE θ₀를 **+31%**, LEGAR를 **+42%** 올렸다 — 루프가 찾은 최대보다 한 자리 크다.
 - 네 데이터셋 **동일 과제**: **전체 코퍼스 검색**. pool 마스킹을 쓰지 않는다.
 
 ### θ₀ (BM25 단독, NDCG@30, 공식 fold)
@@ -148,33 +156,61 @@ LeCaRD val은 **8건**이라 선택 기준으로 쓰지 않는다.
 
 ## 지금까지 밝혀진 것 (요약)
 
-아래는 **train fold** 수치다. 괄호 안은 그 데이터셋의 **noise floor**(측정된, 구분 가능한
-최소 Δ)이고, floor를 못 넘는 숫자는 "1위처럼 보이는 자리"까지만 말한다.
+아래는 **train fold** 수치다. floor를 못 넘는 Δ는 "1위처럼 보이는 자리"까지만 말한다.
 
-1. **최소 개입만 작동한다.** θ₀은 BM25 단독이고, 8가지 view 조합 중 **BM25+semantic 둘만**
-   켜는 것이 네 데이터셋 전부에서 1위다 (LeCaRDv2 +0.0140 / LeCaRD +0.0134 /
-   COLIEE +0.0041 / LEGAR +0.0062). metadata view는 네 데이터셋 **전부 음수**다.
-   판례는 모든 정보가 본문에 있어 메타데이터가 BM25와 중복된다 — 논문의 multi-view 전제가
-   이 도메인에서 성립하지 않는다.
-2. **COLIEE와 LeCaRD에서는 "어떤 view를 켤지"가 측정 불가다.** floor가 각각 0.0052 /
-   0.0240이고 어느 설정도 넘지 못한다. LeCaRD는 train 79건이라 원리적 한계다(원데이터).
+> **floor 값은 이 문서에 적지 않는다.** 출처는 `noise_floor.json` 하나이고, 실행이 그 값과
+> 출처를 함께 찍는다. 2026-11-22에 산출 방식을 **레시피 카드 → 고정 설정 쌍**으로 바꿨다
+> (카드 기반 floor는 pool이 바뀔 때마다 움직였고, 그 숫자를 만든 카드 여덟 중 셋은 이미
+> 존재하지 않았다). LeCaRD는 0.0228 → **0.0103**으로 내려갔고 나머지 셋은 재측정 중이다.
+
+1. **최소 개입이 기본이지만, 깊이를 맞추면 view는 더 들어간다.** θ₀은 BM25 단독이고,
+   8가지 view 조합을 **깊이 전부 100**으로 재면 **네 view 전부 켜는 ⑧이 세 데이터셋에서
+   1위**다(LeCaRDv2 +0.0159 / COLIEE +0.0061 / LEGAR +0.0073). LeCaRD만 ②(+semantic)가
+   앞선다.
+
+| 설정 (깊이 전부 100) | LeCaRDv2 | LeCaRD | COLIEE | LEGAR |
+|---|---|---|---|---|
+| ① BM25만 (θ₀) | 0.3885 | 0.6637 | 0.2413 | 0.0516 |
+| ② +semantic | +0.0140 | **+0.0134** | +0.0041 | +0.0062 |
+| ③ +metadata | −0.0060 | −0.0306 | −0.0023 | +0.0010 |
+| ④ +sem+meta | +0.0132 | −0.0071 | **+0.0061** | +0.0064 |
+| ⑤ +meta+strip | −0.0034 | −0.0100 | −0.0001 | +0.0039 |
+| ⑥ +strip | −0.0037 | −0.0082 | −0.0018 | +0.0009 |
+| ⑦ ws+sem+strip | +0.0059 | −0.0304 | −0.0011 | +0.0062 |
+| **⑧ 네 view 전부** | **+0.0159** | +0.0086 | **+0.0061** | **+0.0073** |
+| noise floor | *(재측정 중)* | **0.0103** | *(재측정 중)* | *(재측정 중)* |
+
+   **깊이 10/30에서는 ②가 네 곳 전부 1위로 보였다.** metadata는 10, party-strip은 30이던
+   값이 근거 없이 흩어져 있었고, 그것을 100으로 통일하자 순위가 바뀌었다. 기본값을
+   선택으로 읽으면 결론이 바뀐다는 사례가 이 프로젝트에서 세 번째다.
+
+2. **metadata view는 단독으로는 해롭고 보완재로는 기여한다.** 단독(③)은 네 곳 중 셋에서
+   음수인데, semantic과 함께면(④) COLIEE·LEGAR에서 ②를 앞선다. "네 데이터셋 전부
+   해롭다"는 **단독 조건에서만** 참이다. 그 가중치(`weight_structured`)는 엔진 기본값
+   0.5로 **한 번도 sweep하지 않았다** — 측정 중이다.
+
+3. **COLIEE와 LeCaRD에서는 "어떤 view를 켤지"가 측정 불가다.** 어느 설정도 그 데이터셋의
+   floor를 넘지 못한다. LeCaRD는 train 79건이라 원리적 한계다(원데이터).
    거기서 루프가 무엇을 찾아도 성과로 읽을 수 없다.
-3. **최적 설정은 데이터셋마다 다르다.** `weight_semantic` 최적값만 0.1~2.0으로 **20배**
+4. **최적 설정은 데이터셋마다 다르다.** `weight_semantic` 최적값만 0.1~2.0으로 **20배**
    벌어진다. 전역 기본값을 박는 대신 **데이터셋별로 엔진이 찾게 하는 것**이 이
    프레임워크의 값이다. 격자는 채점용 정답지일 뿐이다.
-4. **이득의 귀속.** 사람이 내린 tier ① 결정 하나(색인 절 + 임베딩 길이)가 COLIEE θ₀를
+5. **이득의 귀속.** 사람이 내린 tier ① 결정 하나(색인 절 + 임베딩 길이)가 COLIEE θ₀를
    **+31%**, LEGAR를 **+42%** 올렸다. 루프가 찾은 최대는 **+1.9%**다. 한 자리 차이이고,
    효과가 가장 큰 축(문서 변환)이 사람 손에 있다 — 이 연구의 가장 약한 지점이고 그대로
    보고한다.
-5. **벤치마크가 과제 정의와 어긋나는 지점을 쟀다.** 정답 문서가 쿼리의 당사자명을
+6. **벤치마크가 과제 정의와 어긋나는 지점을 쟀다.** 정답 문서가 쿼리의 당사자명을
    **+16pp**, 지명을 **+51pp** 더 공유한다. 같은 구에서 난 두 사건은 유사 사건이 아닌데
    지표는 그것을 보상한다. 그래서 `STRIP_SCOPE` 기본값을 점수가 아니라 **과제 정의**에
    맞춰 인명+사명+지명으로 두고, 두 숫자를 함께 보고한다.
-6. **레시피라는 장치가 비어 있다.** 손으로 쓴 5장 중 **4장이 action space 필드 하나짜리**
-   제안으로, 진단 LLM이 카드 없이 직접 쓸 수 있다. 행동 공간이 작고(12개) 필드가 대체로
-   독립적이면 레시피의 역할이 없다 — 그래서 **LLM이 직접 제안하는 쪽**(`learn_recipes.py`)
-   으로 간다. 묶음이라는 장치 자체는 `per_category_overrides`로 action space 안에 이미
-   있고, 그쪽이 실제로 더 많이 움직였다(val +0.0079 대 전역 +0.0012).
+7. **레시피는 한 타입이 아니라 셋이었다.** 손으로 쓴 5장 중 4장이 필드 하나짜리 제안이라
+   진단 LLM이 카드 없이 직접 쓸 수 있었다. 원인을 따라가니 `Recipe` 하나가 **서로 다른 세
+   가지 일**을 담고 있었다 — ② 값(`dict[field,value]`) / ③ **Bundle**(함께 움직여야 하는
+   **필드 집합**, 값 없음) / ③′ **Rule**(**질의 재작성 텍스트**, 필드 없음). 셋째는
+   `RetrievalConfig`에 자리가 없어 `query_rewrite_repeat` 정수 하나로 눌려 있었고, 비교 대상
+   "When Rules Learn"이 진화시키는 대상이 바로 그것이다. 2026-11-22에 세 타입으로 갈라
+   `registry.py`에 넣었고 5장 → **Bundle 1 + Constraint 1 + Rule 1**이 됐다. 남은 질문은
+   *"Bundle이 독립 기여를 하는가, step-cap 회계의 패치일 뿐인가"*이고 2×2로 판정한다.
 
 근거와 반례는 [METHODOLOGY.md §8](METHODOLOGY.md)에 있다. **단 §8의 네 데이터셋 표는
 test fold 산물이므로 교체 대기 중이다** — 그 표의 결론("⑤가 1위")은 train에서 부호가
@@ -196,7 +232,7 @@ Evolution integrity: all 7 diagnosis calls OK
 라운드는 제안이 없어 아무것도 시험하지 않는다. 과거에 이 줄이 없어서, 5라운드 중
 2라운드가 죽은 COLIEE 실행이 "정직하게 탐색하고 아무것도 못 찾은 실행"으로 읽혔다.
 죽은 라운드는 프롬프트에 `initial config [baseline]`로 렌더되기까지 했다
-([METHODOLOGY.md §12·§13](METHODOLOGY.md)).
+(JOURNAL의 해당 일자 항목).
 
 `round_N.json`의 `llm_status`가 `ok`가 아닌 라운드는 **데이터 포인트가 아니다.**
 
