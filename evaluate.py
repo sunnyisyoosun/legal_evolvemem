@@ -38,16 +38,87 @@ def fold_of(row: dict) -> str:
     return row.get("fold") or row.get("split") or "train"
 
 
+# The test fold is scored ONCE, at the end. That is a standing instruction,
+# and it was broken before this guard existed: METHODOLOGY 8 ran its seven
+# settings on test across four datasets, concluded that setting 5 wins, and
+# that conclusion then reached the recipes and the diagnosis prompt -- so
+# those test numbers are not held-out any more. A sentence in a document did
+# not stop it, because `--split test` was just another string.
+#
+# Now it is a wall: scoring test needs ALLOW_TEST=1 in the environment, set
+# deliberately for the one final run. `split=None`/"all" would silently
+# include test rows, so they are refused too; pass a fold by name.
 def in_split(row: dict, split: str | None) -> bool:
+    if split in (None, "all") or split == "test":
+        if os.environ.get("ALLOW_TEST") != "1":
+            raise RuntimeError(
+                f"split={split!r} would score the test fold, which is "
+                "measured once at the very end. Use 'train' or 'val'. "
+                "For the final run, set ALLOW_TEST=1 explicitly."
+            )
     return split in (None, "all") or fold_of(row) == split
 
 
 def weak_config() -> RetrievalConfig:
     """BM25-only start point, matching the paper's minimal theta_0."""
+    # `entity_swap_keyword_k` is set even though the view is off: it is the
+    # depth the view GETS when something switches it on, and the engine's
+    # default is 10 -- so an `enable_entity_swap: True` proposal that says
+    # nothing about depth would silently land on the one value measured to
+    # be worst. Every view's depth is 100 (sweep.py --grid depth).
     return RetrievalConfig(
         fusion_mode="keyword_only", keyword_top_k=100, semantic_top_k=0,
         structured_top_k=0, max_context=100, enable_entity_swap=False,
+        entity_swap_keyword_k=100,
     )
+
+
+def per_query(index, rows, labels, config: RetrievalConfig,
+              top_n: int = 30, pool=None, metric: str = PRIMARY) -> list[float]:
+    """Per-query scores for one config, in `rows` order.
+
+    A list, not a mean: every comparison in this project is PAIRED -- the
+    acceptance threshold, recipe admission, the noise floor, the val
+    separation check -- and a paired bootstrap needs the per-query
+    differences, which a mean has already thrown away.
+
+    This function existed three times verbatim (learn_recipes,
+    measure_recipes, select_on_val) and inline twice more (sweep, trace).
+    Three copies of a scoring loop is three chances for one of them to use a
+    different top_n or a different metric and for the resulting numbers to be
+    compared anyway.
+    """
+    out = []
+    for q in rows:
+        ranked = L.search(index, q, config, top_n=top_n,
+                          pool=pool.get(q["query_id"]) if pool else None)
+        out.append(L.MBR.compute_query_metrics(
+            ranked, labels[q["query_id"]], EVAL_K)[metric])
+    return out
+
+
+def load_fold(dataset: str, split: str | None = None, *, emb_tag: str = "m3",
+              suffix: str = ""):
+    """(index, rows, labels) for one dataset+split. One copy, not six.
+
+    These four lines were duplicated in measure_recipes, learn_recipes,
+    select_on_val, strip_components and sweep. Six copies of a loader is six
+    chances for one of them to read a different corpus file, a different
+    qrels path, or -- the one that actually bit -- a different split: the
+    `--split` default was `test` in one of them while the documentation said
+    train (JOURNAL 46).
+
+    `rows` is already filtered to queries that HAVE labels and fall in the
+    split, in corpus order, which is the order `per_query` returns scores in.
+    """
+    cases = json.load(open(f"{CASE_DIR}/{dataset}_cases{suffix}.json",
+                           encoding="utf-8"))
+    qs = json.load(open(f"{CASE_DIR}/{dataset}_queries{suffix}.json",
+                        encoding="utf-8"))
+    labels = L.MBR.load_qrels(QRELS.format(ds=dataset))
+    index = L.build_index(dataset, cases, qs, emb_tag=emb_tag)
+    rows = [q for q in qs if q["query_id"] in labels and in_split(q, split)]
+    return index, rows, labels
 
 
 def evaluate(dataset: str, config: RetrievalConfig, split: str = "test",
@@ -85,6 +156,31 @@ def evaluate(dataset: str, config: RetrievalConfig, split: str = "test",
             agg.setdefault(k, []).append(v)
     metrics = {k: round(st.mean(v), 4) for k, v in agg.items()}
     metrics["_n_queries"] = len(rows)
+    # A point estimate alone hides what the fold can resolve. LeCaRD ships
+    # 107 queries and our split leaves val=8 and test=20, so a LeCaRD number
+    # is far less precise than a LEGAR_stricter one computed the same way --
+    # and nothing in the output said so. The interval is a bootstrap over
+    # QUERIES, which is the only sampling here: retrieval is deterministic,
+    # so re-running changes nothing and the uncertainty is entirely "would
+    # this hold on other queries".
+    #
+    # This is the unpaired form -- the CI of the mean score itself, not of a
+    # difference. It is therefore WIDER than the paired interval used to
+    # compare two configs (recipe_learning.bootstrap_ci on per-query deltas),
+    # and the two must not be read against each other: use this one for "how
+    # well does this config do", and the paired one for "is B better than A".
+    try:
+        import recipe_learning as _RL
+        primary = f"NDCG@{max(EVAL_K)}" if f"NDCG@{max(EVAL_K)}" in agg else None
+        if primary:
+            lo, hi = _RL.bootstrap_ci(agg[primary])
+            metrics["_ci95"] = [round(lo, 4), round(hi, 4)]
+            metrics["_ci95_metric"] = primary
+    except Exception as e:                      # never fail a run over a CI
+        metrics["_ci95_error"] = str(e)[:120]
+    # Cumulative retrieval budget, so a sweep's total cost and a run's total
+    # cost are expressed in the same unit (see legal_retriever.budget).
+    metrics["_searches"] = L.budget()
     metrics["_seconds"] = round(time.time() - t0, 1)
     return metrics, run, index
 
@@ -92,7 +188,10 @@ def evaluate(dataset: str, config: RetrievalConfig, split: str = "test",
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dataset", required=True, choices=sorted(LANG_OF))
-    ap.add_argument("--split", default="test",
+    # Was `default="test"`: a bare `evaluate.py --dataset X` scored the held
+    # -out fold. That is how METHODOLOGY 8's four-dataset table came to be a
+    # test-fold measurement. Default train; test needs ALLOW_TEST=1 as well.
+    ap.add_argument("--split", default="train",
                     choices=["train", "val", "test", "all"])
     ap.add_argument("--top-n", type=int, default=30)
     ap.add_argument("--suffix", default="", help="memory-file variant suffix")
@@ -108,6 +207,13 @@ def main():
                                args.top_n, suffix=args.suffix,
                                use_pool=args.use_pool)
     print(f"  {metrics['_n_queries']} queries, {metrics['_seconds']}s")
+    if "_ci95" in metrics:
+        lo, hi = metrics["_ci95"]
+        m = metrics["_ci95_metric"]
+        print(f"  {m} = {metrics[m]:.4f}  CI95 [{lo:.4f}, {hi:.4f}]  "
+              f"(+/-{(hi - lo) / 2 * 100:.2f} pp over {metrics['_n_queries']} "
+              f"queries -- differences smaller than that are not resolvable "
+              f"on this fold)")
     for m in ("Precision", "Recall", "NDCG"):
         print(f"  {m:10s} " + "  ".join(f"@{k}={metrics[f'{m}@{k}']:.4f}" for k in EVAL_K))
     if args.out:

@@ -133,8 +133,17 @@ def build_queries(dataset: str, query_field: str = "Q") -> list[dict]:
     return out
 
 
-LABEL_KEYS = ("legal_class", "difficulty_class", "category", "fold",
-              "profile_gap", "profile_entropy")
+# The classification labels a rebuild carries over, and the same tuple a
+# previous build must already have for its labels to be worth carrying.
+#
+# These were two tuples. The carry list also held Axis B
+# (`difficulty_class`, `profile_gap`, `profile_entropy`), which is RETIRED
+# (METHODOLOGY 6) and which no builder has written since -- zero occurrences
+# across all four corpus/*_queries.json, 8,545 rows. While the required list
+# still named `difficulty_class`, every rebuild silently carried nothing and
+# `if carried:` printed nothing either; the folds came back as the OLD
+# two-way train/test split and `fusion_sweep --split val` died on
+# KeyError('NDCG@30'). One tuple cannot drift from itself.
 
 
 def _carry_labels(path: str, rows: list[dict]) -> int:
@@ -148,7 +157,7 @@ def _carry_labels(path: str, rows: list[dict]) -> int:
     n = 0
     for r in rows:
         prev = old.get(r["query_id"])
-        if prev and all(k in prev for k in LABEL_KEYS[:3]):
+        if prev and all(k in prev for k in LABEL_KEYS):
             for k in LABEL_KEYS:
                 if k in prev:
                     r[k] = prev[k]
@@ -195,10 +204,17 @@ def main() -> None:
         _stats("queries", qs, ("legal_refs", "parties", "topic", "location", "timestamp", "articles"))
         # Classification labels live on the query rows and are produced by a
         # separate, slower pass. Rebuilding extraction must not silently drop
-        # them, or the next sweep fails on a missing difficulty_class.
+        # them, or the next sweep fails on a missing `fold`.
         carried = _carry_labels(f"{args.out}/{ds}_queries{'' if args.doc_field is None else f'_{args.doc_field}'}.json", qs)
         if carried:
-            print(f"  carried classification labels for {carried} queries")
+            print(f"  carried classification labels for {carried}/{len(qs)} queries")
+        if carried < len(qs):
+            # Loud, because the failure mode is invisible downstream: a query
+            # with no `fold` is simply absent from every split, so the sweep
+            # reports on fewer queries -- or none -- rather than erroring.
+            print(f"  !! {len(qs) - carried}/{len(qs)} queries have NO "
+                  f"classification labels. Run `classify_queries.py "
+                  f"--dataset {ds}` before any sweep or evolution run.")
         for tag, rows in (("cases", cases), ("queries", qs)):
             suffix = "" if args.doc_field is None else f"_{args.doc_field}"
             path = f"{args.out}/{ds}_{tag}{suffix}.json"

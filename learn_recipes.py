@@ -20,21 +20,10 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import legal_retriever as L
 import recipe_learning as RL
 from legal_meta import LANG_OF
-from evaluate import CASE_DIR, QRELS, EVAL_K, in_split, weak_config
+from evaluate import CASE_DIR, QRELS, EVAL_K, in_split, weak_config, per_query
 from legal_evolve import make_llm_call
 
 PRIMARY = "NDCG@30"
-
-
-def per_query(index, rows, labels, cfg) -> list[float]:
-    """Per-query scores, kept as a list because admission needs the paired
-    differences, not just their mean (recipe_learning.admit)."""
-    out = []
-    for q in rows:
-        ranked = L.search(index, q, cfg, top_n=30)
-        out.append(L.MBR.compute_query_metrics(
-            ranked, labels[q["query_id"]], EVAL_K)[PRIMARY])
-    return out
 
 
 def score(index, rows, labels, cfg) -> float:
@@ -108,9 +97,16 @@ def main():
     print(f"temperature={a.temperature}"
           + (f", withholding {a.rotate_crowded} crowded field(s)/round"
              if a.rotate_crowded else ""))
+    floor, floor_src = RL.noise_floor(a.dataset)
     print(f"admission: paired-bootstrap CI lower bound > 0 at "
-          f"alpha={RL.ALPHA}/k, mean > +{RL.ADMIT_THRESHOLD}, and "
-          f"after > theta_0\n")
+          f"alpha={RL.ALPHA}/k, mean > +{floor:.4f}, and after > theta_0")
+    print(f"  the bar is {a.dataset}'s MEASURED noise floor ({floor_src}), "
+          f"not the engine's 0.003 -- that constant is under this floor on "
+          f"three of four datasets")
+    print(f"  caveat: the floor is measured on full train (n={len(train)}) "
+          f"while these deltas are on train-dev (n={len(dev)}), which is "
+          f"noisier -- so it is a LOWER bound on the right bar. The CI gate "
+          f"is bootstrapped on the dev deltas and is what binds.\n")
     _base_cache: dict = {}
     # Every candidate is tested against the same dev fold, so the confidence
     # level tightens as the count grows (recipe_learning.admit).
@@ -178,7 +174,8 @@ def main():
         deltas = [b - a_ for a_, b in zip(base_v, after_v)]
         delta = after - base
         n_tested += 1
-        ok, why = RL.admit(deltas, after, theta0, n_tested=n_tested)
+        ok, why = RL.admit(deltas, after, theta0, n_tested=n_tested,
+                           threshold=floor)
         full = RL.crowding(store)
         if ok and full:
             ok, why = False, full

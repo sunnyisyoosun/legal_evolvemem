@@ -10,17 +10,31 @@ in highly regular surface forms.
 from __future__ import annotations
 import re
 
-# Field indexed as retrievable content. Held uniform at "Fact" across datasets
-# so that framework comparisons are not confounded by the input text differing
-# per benchmark. Note this is NOT how the published baselines were measured:
-# their cached BM25 indices used Fact+Reason+Result for COLIEE and LEGAR, which
-# scores higher (COLIEE NDCG@30 0.253 vs 0.200, LEGAR 0.060 vs 0.037). The
-# baselines must therefore be re-measured under this setting before comparison.
+# Field indexed as retrievable content: the whole judgment, not the fact
+# section alone.
+#
+# This was "Fact" for every dataset, chosen so that a framework comparison
+# would not be confounded by the input text differing per benchmark. The
+# choice held, and it cost more than everything the evolution loop ever
+# found: the published baselines index Fact+Reason+Result and score COLIEE
+# 0.253 vs 0.200 and LEGAR 0.060 vs 0.037 -- relative +26% and +62%, against
+# a best evolved gain of +0.0112 (relative 2.7%) on LeCaRDv2 (JOURNAL 26).
+#
+# So the uniformity is kept and the level is raised: all four datasets index
+# all three sections. Comparisons stay unconfounded because the setting is
+# still identical across them, and the absolute numbers now sit in the same
+# column as the published baselines rather than below them.
+#
+# Changing this invalidates two derived artefacts, and both have to be
+# rebuilt: the BM25 tokenisation cache (keyed on document lengths, so it
+# re-keys itself) and the bge-m3 vectors (NOT keyed on text, which is why
+# build_embeddings now writes a .meta.json fingerprint and legal_retriever
+# refuses vectors built from different text).
 DOC_FIELD_OF = {
-    "COLIEE": "Fact",
-    "LEGAR_stricter": "Fact",
-    "LeCaRD": "Fact",
-    "LeCaRDv2": "Fact",
+    "COLIEE": "all",
+    "LEGAR_stricter": "all",
+    "LeCaRD": "all",
+    "LeCaRDv2": "all",
 }
 
 LANG_OF = {
@@ -40,6 +54,14 @@ _ZH_ARTICLE = re.compile(rf"第([{_ZH_NUM}]{{1,10}})条")
 # "构成掩饰、隐瞒犯罪所得、犯罪所得收益罪" is one charge, not two fragments.
 _ZH_CHARGE  = re.compile(r"(?:构成|犯|指控|以)([\u4e00-\u9fa5、]{2,18})罪")
 _ZH_CHARGE_BAD = ("认罪", "被告人", "当庭", "表示", "悔罪", "本案", "归案", "判处")
+# The anchors above (构成|犯|指控|以) also occur INSIDE other words -- 所犯,
+# 以上 -- and then the capture starts at a function word and runs to the next
+# 罪: 的犯罪 9.4% of LeCaRDv2 documents, 事实、罪 3.1%. A prefix test is the
+# only safe filter here, because a real compound charge legitimately contains
+# 犯罪 ("掩饰、隐瞒犯罪所得、犯罪所得收益罪" -- the case the greedy quantifier
+# exists for), so 犯罪 cannot be banned outright.
+_ZH_CHARGE_BAD_HEAD = ("的", "及", "或", "和", "与", "等", "其", "本", "该",
+                       "上", "下", "、", "事实", "所", "后", "前", "另", "以")
 # Names run 2-3 characters, or are anonymised as 王某 / 徐某1. A plain
 # {2,4} match swallows the verb that follows ("莫新国酒后驾驶" -> "莫新国酒").
 _ZH_PERSON  = re.compile(r"(?:被告人|被害人|原告|被告)([\u4e00-\u9fa5]{1,2}某\d?|[\u4e00-\u9fa5]{2,3})")
@@ -54,7 +76,31 @@ _ZH_COURT   = re.compile(r"([一-龥]{2,12}?(?:人民法院|人民检察院))")
 _KO_STATUTE = re.compile(r"((?:[가-힣]+\s+){0,5}[가-힣]*법(?:률)?)\s*(?:제\s*)?(\d{1,4})\s*조")
 _KO_JOSA = ("은", "는", "이", "가", "을", "를", "의", "에", "서", "로",
             "와", "과", "도", "만", "며", "고", "여", "서는", "에서")
-_KO_CHARGE  = re.compile(r"([가-힣][가-힣()·\s]{1,30}?)죄")
+# Two shapes, because one pattern cannot do both.
+#
+# The old single pattern was r"([가-힣][가-힣()·\s]{1,30}?)죄" -- no left
+# anchor at all, so it swallowed up to 31 characters of sentence before 죄.
+# Worse, `.strip()` on the match welded the words together, so a plain noun
+# use of 죄 ("...에 비추어 죄를 인정한다") came out as the charge `비추어죄`:
+# 비추어죄 6.3% of documents, 피고인의죄 3.1%, 것으로죄 2.4%, 같은죄 1.3%.
+#
+# (a) statute violation. The law name is written UNSPACED in this corpus
+#     (특정경제범죄가중처벌등에관한법률위반(사기)죄), so `[가-힣]*` before 법
+#     recovers it whole. A spaced prefix is NOT allowed: measured on 3,000
+#     LEGAR documents, 55% of statute-violation matches had a spaced prefix
+#     and every frequent one was a sentence modifier on an already complete
+#     name ("형이 가장 무거운 ...", "에 대한 ...", "각 ..."), not part of the
+#     law's title.
+_KO_CHARGE_VIOL = re.compile(r"([가-힣]*법(?:률)?\s*위반\s*\([^)]{1,30}\))죄")
+# (b) plain charge: one unspaced run welded to 죄. No lookahead after 죄 --
+#     Korean attaches particles to the noun (강간죄를, 상해죄와), so
+#     forbidding a following syllable would reject every real charge.
+_KO_CHARGE  = re.compile(r"([가-힣]{2,14}?)죄")
+# 범죄 is the generic noun "crime", so anything ending in it is a CATEGORY
+# word, not a charge: 성범죄 24% of documents, 다수범죄 23%, 폭력범죄, 기본범죄,
+# 특정범죄. Classification already has its own axis for this (legal_class),
+# and these crowded out real charges in `topic`.
+_KO_CHARGE_GENERIC = "범죄"
 _KO_PERSON  = re.compile(r"피고인\s*([A-Z]{1,2}\b|[가-힣]{2,4})")
 _KO_DATE    = re.compile(r"(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})\.")
 _KO_COURT   = re.compile(r"([가-힣]{2,10}(?:지방|고등|가정|행정)?법원)")
@@ -103,7 +149,8 @@ def extract_metadata(text: str, lang: str, cap: int = 12) -> dict:
         if not statutes:
             statutes = [f"第{m.group(1)}条" for m in _ZH_ARTICLE.finditer(t)]
         charges  = [f"{m.group(1)}罪" for m in _ZH_CHARGE.finditer(t)
-                    if not any(b in m.group(1) for b in _ZH_CHARGE_BAD)]
+                    if not any(b in m.group(1) for b in _ZH_CHARGE_BAD)
+                    and not m.group(1).startswith(_ZH_CHARGE_BAD_HEAD)]
         persons  = [m.group(1) for m in _ZH_PERSON.finditer(t)]
         courts   = [m.group(1) for m in _ZH_COURT.finditer(t)]
         dates    = [f"{m.group(1)}-{int(m.group(2)):02d}-{int(m.group(3)):02d}"
@@ -111,7 +158,16 @@ def extract_metadata(text: str, lang: str, cap: int = 12) -> dict:
     elif lang == "ko":
         statutes = [f"{_ko_law_name(m.group(1))} 제{m.group(2)}조"
                     for m in _KO_STATUTE.finditer(t)]
-        charges  = [f"{m.group(1).strip()}죄" for m in _KO_CHARGE.finditer(t)]
+        charges, _spans = [], []
+        for m in _KO_CHARGE_VIOL.finditer(t):
+            charges.append(m.group(1).strip() + "죄")
+            _spans.append(m.span())
+        for m in _KO_CHARGE.finditer(t):
+            if any(a <= m.start() < b for a, b in _spans):
+                continue          # already inside a statute-violation name
+            name = m.group(1) + "죄"
+            if not name.endswith(_KO_CHARGE_GENERIC):
+                charges.append(name)
         persons  = [m.group(1) for m in _KO_PERSON.finditer(t)]
         courts   = [m.group(1) for m in _KO_COURT.finditer(t)]
         dates    = [f"{m.group(1)}-{int(m.group(2)):02d}-{int(m.group(3)):02d}"
@@ -246,7 +302,7 @@ def query_crime_metadata(crime, lang: str, dataset: str) -> dict:
 # so a lazy quantifier anchored nowhere matches "谋抢劫后来到重庆市" instead of
 # "重庆市". The boundary is punctuation, a motion/locative preposition, or
 # another administrative suffix, which is what lets "重庆市北碚区" yield both.
-_ZH_PREP = "\u4e8e\u5728\u81f3\u5230\u7ecf\u5f80\u8d74\u6765\u56de\u53bb\u4ece\u81ea\u5411"
+_ZH_PREP = "\u4e8e\u5728\u81f3\u5230\u7ecf\u5f80\u8d74\u6765\u56de\u53bb\u4ece\u81ea\u5411\u7531\u4e0e\u53ca\u548c\u4e3a\u88ab\u540c\u8ba9\u66ff\u7ed9"  # `\u7531` was absent, so a preposition was captured into the org
 _ZH_BOUND = (rf"(?:(?<=[{_ZH_PREP}\u7701\u5e02\u533a\u53bf\u9547\u4e61\u6751\u9053\u53f7\s\uff0c\u3002\u3001\uff1b\uff1a\uff08\uff09(),.])|^)"
              rf"(?![{_ZH_PREP}])")
 
@@ -254,16 +310,45 @@ _ZH_ORG = re.compile(
     _ZH_BOUND +
     r"([\u4e00-\u9fa5]{2,10}?(?:\u80a1\u4efd\u6709\u9650\u516c\u53f8|\u6709\u9650\u8d23\u4efb\u516c\u53f8|\u6709\u9650\u516c\u53f8|\u516c\u53f8|\u94f6\u884c|"
     r"\u4fe1\u7528\u793e|\u96c6\u56e2|\u5de5\u5382|\u533b\u9662|\u5b66\u6821|\u5927\u5b66|\u6d3e\u51fa\u6240|\u5206\u5c40|\u516c\u5b89\u5c40|\u5de5\u5546\u5c40|\u7ba1\u7406\u5c40|"
-    r"\u59d4\u5458\u4f1a|\u4e8b\u52a1\u6240))")
+    r"\u59d4\u5458\u4f1a|\u4e8b\u52a1\u6240)"
+    # The alternation stopped at the SHORTEST suffix: with a non-greedy
+    # stem, the group matched at the first suffix it could and cut the
+    # name short. Let that suffix carry its own corporate tail.
+    r"(?:\u80a1\u4efd\u6709\u9650\u516c\u53f8|\u6709\u9650\u8d23\u4efb\u516c\u53f8|\u6709\u9650\u516c\u53f8|\u516c\u53f8)?"
+    r"(?:\u5206\u516c\u53f8|\u5206\u884c|\u5206\u5e97|\u652f\u884c|\u652f\u5e97)?)")
+# The stem is NON-GREEDY. With a greedy {2,3} the stem swallowed the real
+# suffix and took the NEXT character as one: "\u4e25\u576a\u6751\u6751\u6c11" (village +
+# villager) parsed as stem "\u4e25\u576a\u6751" + suffix "\u6751", yielding "\u4e25\u576a\u6751\u6751", and
+# deleting that left "\u6c11\u4e25\u67d02\u5bb6" -- a mangled fragment rather than a removed
+# place name. Non-greedy tries the 2-character stem first ("\u4e25\u576a" + "\u6751") and
+# still backtracks to 3 when it has to ("\u77f3\u5bb6\u5e84" + "\u5e02").
+#
+# Forbidding suffix characters inside the stem was the first attempt and it
+# was too strict: "\u5e73\u4e61\u53bf" (Hebei) and "\u5e02\u4e2d\u533a" (Jinan) are real places whose
+# stem carries one.
 _ZH_PLACE = re.compile(
     _ZH_BOUND +
-    r"([\u4e00-\u9fa5]{2,3}(?:\u81ea\u6cbb\u533a|\u81ea\u6cbb\u5dde|\u81ea\u6cbb\u53bf|\u7701|\u5e02|\u53bf|\u533a|\u9547|\u4e61|\u6751|\u8857\u9053))")
+    r"([\u4e00-\u9fa5]{2,3}?(?:\u81ea\u6cbb\u533a|\u81ea\u6cbb\u5dde|\u81ea\u6cbb\u53bf|\u7701|\u5e02|\u53bf|\u533a|\u9547|\u4e61|\u6751|\u8857\u9053))")
 # Function words cannot appear inside a name, so a span carrying one started
 # mid-sentence: "的营业执照及对公账户银行" is a clause, not a bank.
 _ZH_BAD_IN_NAME = "的及与和或对向把被将其此该并"
 
 # 本市 / 该区 and similar deictic forms are not place names.
 _ZH_PLACE_BAD = ("本", "该", "此", "其", "同", "外", "内", "地", "辖", "全")
+
+# The same words disqualify the span WHEREVER they sit, not only at the front.
+# `_ZH_PLACE_BAD` was a first-character test, so "要求全县" (demand + whole
+# county) and "安排全县" (arrange + whole county) passed, and "各乡镇" ("each
+# township", a common noun) passed because its first character is 各 -- which
+# was not on the list at all. Deleting those removes ordinary words from
+# every query that contains them, which is how the place component came to
+# cost -0.0134 on LeCaRDv2 train.
+#
+# The cost of checking the whole span is real cities whose name contains one
+# of these characters: 大同市 (Shanxi) is rejected because of 同. A delete
+# list that misses a span loses nothing; one that eats a common noun corrupts
+# every query carrying it (section 16: precision over recall).
+_ZH_PLACE_BAD_IN = _ZH_PLACE_BAD + ("各", "每", "另")
 
 _KO_REGION = (r"서움|부산|대구|인천|광주|대전|울산|세종|경기|강원|충정북도|충북|"
               r"충정남도|충남|전라북도|전북|전라남도|전남|경상북도|경북|"
@@ -312,7 +397,8 @@ def is_party_name(name: str, lang: str) -> bool:
     return bool(name.strip())
 
 
-def extract_incidentals(text: str, lang: str, cap: int = 24) -> list[str]:
+def extract_incidentals(text: str, lang: str, cap: int = 24,
+                       by_kind: bool = False):
     """Case-specific spans to delete for the party-strip view.
 
     Parties are NOT included: they come from the precomputed row, so the
@@ -322,17 +408,26 @@ def extract_incidentals(text: str, lang: str, cap: int = 24) -> list[str]:
     """
     t = text or ""
     if lang == "zh":
-        found = [m.group(1) for m in _ZH_ORG.finditer(t)]
-        found += [m.group(1) for m in _ZH_PLACE.finditer(t)
-                  if m.group(1)[0] not in _ZH_PLACE_BAD]
-        found = [f for f in found
-                 if not any(c in f for c in _ZH_BAD_IN_NAME)]
+        org = [m.group(1) for m in _ZH_ORG.finditer(t)]
+        place = [m.group(1) for m in _ZH_PLACE.finditer(t)
+                 if not any(c in m.group(1) for c in _ZH_PLACE_BAD_IN)]
+        drop = lambda xs: [f for f in xs
+                           if not any(c in f for c in _ZH_BAD_IN_NAME)]
+        org, place = drop(org), drop(place)
     elif lang == "ko":
-        found = [m.group(1) for m in _KO_ORG.finditer(t)]
-        found += [m.group(1).strip() for m in _KO_PLACE.finditer(t)]
+        org = [m.group(1) for m in _KO_ORG.finditer(t)]
+        place = [m.group(1).strip() for m in _KO_PLACE.finditer(t)]
     else:
-        found = [m.group(1).strip() for m in _EN_ORG_STRONG.finditer(t)]
-        found += [m.group(1).strip() for m in _EN_ORG_WEAK.finditer(t)]
-        found += [m.group(1) for m in _EN_PLACE.finditer(t)]
-    out = _uniq([f for f in found if len(f) >= 2], cap)
+        org = [m.group(1).strip() for m in _EN_ORG_STRONG.finditer(t)]
+        org += [m.group(1).strip() for m in _EN_ORG_WEAK.finditer(t)]
+        place = [m.group(1) for m in _EN_PLACE.finditer(t)]
+    if by_kind:
+        # One implementation, two shapes. A caller that wants org and place
+        # apart used to re-run the regexes itself, and that copy then missed
+        # `_ZH_PLACE_BAD_IN` when the filter changed -- the same duplication
+        # that `evaluate.per_query` was created to end (JOURNAL 39).
+        keep = lambda xs: _uniq([f for f in xs if len(f) >= 2], cap)
+        return {"org": sorted(keep(org), key=len, reverse=True),
+                "place": sorted(keep(place), key=len, reverse=True)}
+    out = _uniq([f for f in org + place if len(f) >= 2], cap)
     return sorted(out, key=len, reverse=True)

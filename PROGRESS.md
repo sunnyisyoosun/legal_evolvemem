@@ -1,8 +1,8 @@
 # EvolveMem for Legal Case Retrieval — 진행 상황
 
-마지막 업데이트: 2026-10-30
+마지막 업데이트: 2026-11-22
 
-논문 [EVOLVEMEM](https://github.com/aiming-lab/SimpleMem)의 자가진화 검색 구조를
+논문 [EVOLVEMEM](https://github.com/aiming-lab/SimpleMem)의 self-evolution 검색 구조를
 법률 판례 검색(LeCaRD / LeCaRDv2 / COLIEE / LEGAR)에 적용하는 작업 기록.
 
 ---
@@ -12,29 +12,97 @@
 **지금 무엇이 돌고 있고 다음에 무엇을 하는지**만 적는다. 시스템 구조는
 [METHODOLOGY.md](METHODOLOGY.md), 날짜순 발견과 실수는 [JOURNAL.md](JOURNAL.md)에 있다.
 
-### 지금 돌고 있는 것 (2026-11-09)
+### 지금 위치 (2026-11-22)
 
-| | 상태 |
+**돌고 있는 것** — `noise_floor.py`가 LeCaRDv2 → COLIEE → LEGAR_stricter의 수용 임계값을
+재고 있다(LeCaRD는 완료: **0.0103**). 데이터셋마다 즉시 기록하므로 중간에 끊겨도 끝난
+것은 남는다.
+
+**막혀 있는 것** — 그 셋의 floor가 나오기 전까지 `verify.py`가 **진화 실행을 막는다.**
+floor가 카드 기반 폴백이면 게이트가 실패한다(아래 "floor 출처 교체").
+
+**바로 다음** — floor가 채워지면 **LLM 루프를 돌린다.** 2026-10-31 이후 한 번도 돌지
+않았고, 그 사이 액션 공간·수용 임계값·레시피 구조가 모두 바뀌었다.
+
+```bash
+V=/home/yoosun/legal/.venv-evolve/bin/python
+$V verify.py                                            # 네 데이터셋 게이트
+$V legal_evolve.py --dataset LeCaRDv2 --split train --rounds 7 \
+    --recipes bundles \
+    --base-url https://openrouter.ai/api/v1 --model openai/gpt-oss-120b
+$V select_on_val.py --dataset LeCaRDv2 --dir evolution_official --write
+```
+
+진단 LLM은 **OpenRouter / `openai/gpt-oss-120b`**이고 키는 실행 시
+`/home/yoosun/evolve/config.py`에서 읽는다(출력하지 않는다). 자체 vLLM은 띄우지 않는다.
+
+> **이 실행으로 무엇을 말할 수 있나.** 1회 실행이다. `temperature=0`인데도 라운드2 제안이
+> 갈린 전례가 있으므로(§11) 나오는 Δ는 "효과"가 아니라 **관측 하나**다. 반복 실행으로
+> σ_run을 재는 일은 아직 못 했다.
+
+### 끝난 것 (2026-11-16 · 11-22) — 전부 사람 쪽 작업이다
+
+이 두 날의 작업은 **②의 공간을 참으로 만드는 일**이었고, 그 공간을 ②가 실제로 탐색하게
+한 적은 없다. 루프는 10-31 이후 0회다.
+
+| | 결과 |
 |---|---|
-| CoT on/off A/B (LEGAR dev 854, 각 16 제안) | **실행 중.** 두 arm 저장소 0에서 출발, 이름 충돌은 자동 리네임 |
-| `fusion_sweep --split val/train` | **중단됨.** 레시피 수치 교체의 전제 — 다시 띄워야 한다 |
+| **`fusion_mode` 분해** | 한 enum에 **세 종류의 연산**이 섞여 있었다 — `*_only`는 view 마스크(어느 view를 **실행**할지 게이팅), `first_found`는 캐스케이드, 진짜 fusion은 둘뿐. 축이 아니라 **선택자**다 |
+| **`first_found` 차단** | 정렬 없이 view를 이어붙여 `semantic_top_k ≥ max_context`면 앞 view가 자리를 다 먹는다(실측 `first_found` 0.2797 **= `semantic_only`**, `keyword_only` 0.3948). 네 곳에서 동시에 막았다 — 초크포인트 예외 · 제안 검증기 · 카드 검증기 · 프롬프트(**이름은 남기고 거부 이유를 적는다**) |
+| **레버 등록부** (`registry.py`) | 레버를 **(입력 × 채점)** 좌표로 등록하고 `verify.py`가 R2(좌표 유일성)를 건다. 제안 가능 12필드 중 **레버는 9개**, 셋은 결합 축·후보 필터·후처리다 |
+| **등록 규칙 R1~R7** | 이번에 찾은 다섯 결함이 서로 다른 버그가 아니라 **등록 규칙의 부재**라는 한 원인이었다. **R3(기본값 위에서 판정 금지)** 하나가 과거 오판 넷을 전부 설명한다 |
+| **R2가 즉시 잡은 것** | `enable_query_rewrite`와 `enable_entity_swap`이 **같은 레버**다 — 재작성 프롬프트 1번 줄이 party-strip과 같은 삭제를 지시한다. §5가 상관(+0.524)을 이미 쟀는데 결론을 내리지 않았다 |
+| **등록부의 빈칸** | 질의를 바꾸는 레버 둘이 **모두 삭제**다. BM25는 문서에 있는 용어만 매칭하므로 삭제만으로는 재현율이 구조적으로 오르지 않는다 — rewrite의 +0.0009 CI∋0은 레버가 약한 게 아니라 **상한**이다 |
+| **레시피 세 타입** | `Recipe` 하나가 세 일을 담고 있었다 → **Bundle**(필드 집합, 값 없음) · **Constraint**(금지 상태) · **Rule**(재작성 텍스트). 5장 → **1+1+1**. 단일 필드 Bundle은 **생성 자체가 안 된다**(`__post_init__`) |
+| **Bundle cap seam** | Bundle은 값이 없어 벤더 `Recipe`로 변환이 **원리적으로 불가능**하다. shim(`proposal={}`)으로 이름만 받고, 우리 엔진이 `cap' = cap + |제안 ∩ 번들 필드|`로 넓힌다. 벤더 포크 없음 |
+| **floor 출처 교체** | 수용 임계값이 `measure_recipes.py`가 **마침 측정해 둔 카드들**의 CI 중앙값이었다 — pool의 성질이지 데이터셋의 성질이 아니다. 그 숫자를 만든 카드 8장 중 **3장은 이미 존재하지 않았다**. 고정 **설정 쌍 13개**로 교체(`noise_floor.py`), LeCaRD **0.0228 → 0.0103** |
+| **`measure_recipes` 축소** | 207 → **151줄**, Rule 전용. "설정 둘 채점 → paired bootstrap"이 **세 군데** 복사돼 있던 것을 `recipe_learning.measure_pair()`로 합쳤다 |
+| **Axis B 잔재 제거** | 8,545 쿼리 행에 `difficulty_class`가 **0개**인데 함수·분기·캐리 목록이 남아 있었다. `LABEL_KEYS`와 `REQUIRED`가 같은 튜플이 되어 하나로 |
+| **파일 정리** | `levers.py`+`recipes.py` → **`registry.py`** (Rule의 좌표 불변식이 두 파일에 걸쳐 있었다). 6개 파일에 복사돼 있던 로딩 블록 → `evaluate.load_fold()` |
+| **긴 작업이 결과를 잃던 결함** | `noise_floor.py`·`measure_recipes.py`가 **전체 루프 끝에 한 번** 기록해서, 중단되면 끝난 데이터셋까지 날아갔다(실제로 한 번 겪었다) → 데이터셋마다 기록 |
+| **문서 정리** | METHODOLOGY 결론 표 49행이 changelog가 돼 있었다 → 지형/측정/구조 셋으로 나누고 날짜 붙은 정정 13행은 JOURNAL §50으로. 같은 표 안의 **모순**(party-strip "죽었다" vs "판정 철회") 해소, 존재하지 않는 `JOURNAL §49` 참조 4건 수정 |
 
-### 다음 순서 (의존 관계 때문에 순서가 고정이다)
+### 그 전 (2026-11-12~13)
 
-1. `fusion_sweep` val+train 완주 → 설정별 실측치 확보
-2. `RECIPES_LEGAL` 8장의 `expected_lift_pp`를 **train 실측치로 교체**
-   — 현재 값은 **test에서 나온 것(누출)**이고 진단 프롬프트에 사실로 들어간다
-3. 풀 결정: legacy8(수치 교체본) / ladder 24장 / learned
-4. **진화 전부 재실행** — 2에서 프롬프트가 바뀌면 그 전 진화 결과는 전부 무효다
-   (§17 2×2, LeCaRDv2·COLIEE·LEGAR 카테고리별)
-5. `recipe_learning.py` → `legal_recipes.py` 병합 (라이브러리 1 + 실행 1)
-6. **test fold 측정** — 2가 끝난 뒤. 마지막 단계
+
+| | 결과 |
+|---|---|
+| **view 조합 8가지 완주** (`--grid fusion`) | §8이 **8가지 중 7개만** 쟀고 네 view 전부 켜는 하나가 빠져 있었다. 추가해 네 데이터셋 train 완주 → **깊이 100에서 ⑧(네 view 전부)이 세 곳에서 1위**(+0.0159/+0.0061/+0.0073), LeCaRD만 ②. 깊이 10/30에서는 ②가 네 곳 전부 1위로 보였다 |
+| **깊이 통일** (`--grid depth`) | view별 깊이가 100/100/10/30으로 근거 없이 흩어져 있었다. k∈{30,100,200} 측정 → **100이 knee**, 30은 semantic 이득 대부분을 잃는다(LeCaRDv2 +0.0140 → +0.0042). 다섯 파일에 반영 |
+| **party-strip 판정 철회** (`--grid swap-depth`) | "죽었다/해롭다"는 **전부 깊이 30에서 잰 것**이었다. k=100에서 LeCaRD +0.0191·LeCaRDv2 +0.0161로 끄는 것보다 높다. 다만 floor 안이라 정직한 결론은 **"깊이 30 판정은 무효, 100은 중립"** |
+| **test fold 오염 발견** | §8의 네 데이터셋 표가 **test에서 나왔고** 그 결론("⑤가 1위")이 레시피·프롬프트에 들어갔다. 원인은 `evaluate.py --split` **기본값이 `test`**. train에서는 ⑤가 전부 최하위권 — 부호가 뒤집힌다 |
+| **test 가드** | `in_split()`이 `test`·`all`·`None`을 `ALLOW_TEST=1` 없이 거부한다. 문서의 문장이 막지 못했으므로 코드가 막는다. 기본값도 `train`으로 |
+| **삭제 범위 확대** | `STRIP_INCIDENTALS`(불리언) → **`STRIP_SCOPE`**, 기본값 **인명+사명+지명**. 점수가 아니라 **과제 정의** 기준이고 두 숫자를 함께 보고한다. 중국어 정규식 결함 둘(전치사 `由`/`和`/`与` 누락, 접미사 조기 종료) 수정 |
+| **semantic/dense 이름 통일** | 문서·코드가 한 통로를 두 이름으로 불렀다. `semantic`으로 고정(바꿀 수 없는 쪽이 `semantic_top_k`이고 **진단 LLM이 그 이름으로 제안**한다). `SEMANTIC_USES_ROW_TEXT`·`semantic_query` |
+| **파생 벡터 기계 제거** | `verify.py --write` → `build_embeddings --derived` → qderiv 로더. 네 데이터셋 목록이 **전부 0개**이고 `.npy`는 생성된 적 없었다 — semantic이 원문에 고정되면 파생될 것이 없다. 불변식은 **실제 경로에서 단정**으로 대체 |
+| **레시피 데이터셋 필터** | `as_recipes(dataset=)`. 없었던 것이 §34 오염의 원인이고 `dataset`은 **항상 기록돼 있었는데 아무도 읽지 않았다**. LEGAR 3장이 LeCaRD·COLIEE 루프로 가고 있었다 |
+| **승인 기준 수정** | 레시피 승인이 아직 `0.003`(LoCoMo 상수)이었다 → `admit(threshold=)` 키워드 전용·기본값 없음, 호출자가 `noise_floor(dataset)`를 넘긴다 |
+| **프롬프트 사실 오류** | 상수 하나가 두 일을 했다 — 루프의 라운드당 한도(**2**)와 카드가 담을 필드 수(**5**)가 같은 `MAX_FIELDS`. LLM에게 "라운드당 5개 바꿀 수 있다"고 알려주고 있었고, **레시피의 논거 자체가 그 숫자**다. `STEP_CAP=2` 분리 |
+| **`weak_config` 함정** | `entity_swap_keyword_k`를 안 써서 엔진 기본값 **10**으로 떨어졌다. 깊이를 말하지 않은 제안이 **측정상 최악의 값에 조용히 착지**한다 → 100 |
+| **플래그 통합** | `--no-recipes`+`--learned-recipes` → **`--recipes {hand,learned,both,none}`**. 전자는 상호 배타여서 "학습된 카드만"이 **도달 불가**였다 |
+| **파일 정리** | 25 → **19개**. `random_arm.py`·`legal_recipes.py` 삭제, `verify_prompt`+`derived_queries`→`verify.py`, `strip_primary`→`strip_components`, `fusion_sweep`→`sweep.py --grid` |
+
+### 다음 순서
+
+1. **floor 셋 완료** → `verify.py` 통과 (돌고 있다)
+2. **LLM 루프 1회** — LeCaRDv2, `--recipes bundles`. **Bundle을 LLM이 처음으로 쓰는 실행**
+3. **2×2** — `{bundles, none} × {step_cap 2, 완화}`. `①−③ ≈ ④−③`이면 Bundle의 독립
+   기여는 0이고, 그것은 버그가 아니라 보고할 결과다(§3)
+4. **R2 해소** — rewrite 4조건 분해(off / 현재 / 삭제만 / 확장만). 확장만이 현재를 못
+   이기면 레버를 **없앤다**(action space 12 → 11)
+5. **등록부 빈칸 채우기** — 확장 Rule. `admit()`의 두 경로 분기가 선행
+6. **σ_run** — 같은 조건 반복. 이것 없이는 어떤 Δ도 "효과"라 부를 수 없다
+7. **카테고리별 진화** — §6의 요구사항
+8. **test fold** — 마지막. **단 §8이 이미 한 번 채점했으므로 held-out이 아니다**
+
+**취소된 과제**: 삭제-질의 벡터 선계산 — semantic은 의미 view이므로 원문을 읽고,
+party-strip은 BM25의 어휘적 쌍둥이이므로 semantic 절반이 없다. 선계산할 것이 없다.
 
 ---
 
 ## 0. 현재 위치 요약
 
-**완료**: 데이터 변환 · 검색 래퍼 · 평가 하네스 · 쿼리 분류(Axis A) · 다국어 semantic 뷰 ·
+**완료**: 데이터 변환 · 검색 래퍼 · 평가 하네스 · 쿼리 분류(Axis A) · 다국어 semantic view ·
 entity-swap · 추출 품질 개선 · 쿼리 재작성 · **법률 레시피 8장 투입** ·
 **RRF 네 데이터셋 비교** · 레시피 결함 3건 수정
 
@@ -43,10 +111,10 @@ entity-swap · 추출 품질 개선 · 쿼리 재작성 · **법률 레시피 8�
 | | train (640) | test (160) |
 |---|---|---|
 | θ₀ (BM25 only) | 0.4040 | 0.3948 |
-| 수동 스윕 최고 | 0.4155 | 0.4057 (+0.0110) |
+| 수동 sweep 최고 | 0.4155 | 0.4057 (+0.0110) |
 | **진화 R2** | **0.4184** | **0.4101 (+0.0154)** |
 
-**R1 정체는 해결됐다.** 원인은 레시피 풀이 비어 있어 의존하는 설정들을 한 번에 넘길 수단이
+**R1 정체는 해결됐다.** 원인은 레시피 pool이 비어 있어 의존하는 설정들을 한 번에 넘길 수단이
 없었던 것이고(§6), 8장을 넣자 R0에서 발동 → R1·R2 연속 ACCEPT → **진화가 수동 튜닝을
 처음 이겼다**.
 
@@ -155,7 +223,7 @@ LeCaRD 0.8254 / 0.6427, COLIEE 0.2531, LEGAR 0.0598.
 | `build_embeddings.py` | 다국어 임베딩 선계산 (`--model`, `--tag`) |
 | `evaluate.py` | 단일 설정 평가 + run 파일 덤프 |
 | `sweep.py` | 설정 비교, 클래스별 최적 탐색, `--fit-apply` 일반화 검증 |
-| `legal_evolve.py` | EvolveMem 진화 루프를 검색 과제로 — 어댑터·이음매·진단 컨텍스트 |
+| `legal_evolve.py` | EvolveMem 진화 루프를 검색 과제로 — 어댑터·seam·진단 컨텍스트 |
 | `query_rewrite.py` | LLM 쿼리 재작성(언어별 프롬프트) + 확장/RRF 비교 |
 | ~~`llm_taxonomy.py`~~ | LLM 분류 실험. **중국어에서 규칙이 우월해 미채택이고, 2026-11-09에 파일을 삭제했다** — 결론은 여기 남기고 코드는 지웠다 |
 
@@ -164,11 +232,11 @@ LeCaRD 0.8254 / 0.6427, COLIEE 0.2531, LEGAR 0.0598.
 1. **판례 1건 = 메모리 1개, LLM 추출 생략.** EvolveMem의 추출기는 대화를 사실로 증류하는 용도인데
    판결문은 이미 검색 단위이고, 55k 문서에 LLM을 돌리면 비용이 전체를 지배한다. 변환은 10~15초.
 2. **`retrieve_multiview`를 포크하지 않는다.** 진화 엔진이 튜닝할 fusion·time-decay·per-category override
-   로직이 그 안에 있다. 법률에서 깨지는 지점만 각자의 이음매에서 교체:
+   로직이 그 안에 있다. 법률에서 깨지는 지점만 각자의 seam에서 교체:
    - BM25 토크나이저 (`content.lower().split()` → jieba/mecab/spaCy, 기존 baseline과 동일)
    - 쿼리 분석 (`analyze_query`는 대문자로 엔티티 탐지 — 영어 전용)
-   - pool 마스킹 (`index.set_pool()` 하나로 세 뷰 전부)
-   - 구조화 뷰 (persons∩entities 교집합 + 상수 1.0 점수 → 일치 개수 점수, persons 기본 비활성)
+   - pool 마스킹 (`index.set_pool()` 하나로 세 view 전부)
+   - 구조화 view (persons∩entities 교집합 + 상수 1.0 점수 → 일치 개수 점수, persons 기본 비활성)
 3. **쿼리도 문서와 같은 추출기로 변환.** 이 벤치마크들은 쿼리도 사실관계 서술이라 양쪽이 어휘를 공유한다.
 4. **임베딩은 디스크 선계산.** 진화 루프가 매 라운드 재인코딩하지 않도록.
    임베딩 텍스트에서 **당사자 이름 제외** — 판례에서 피고인 이름은 사건 식별 정보가 아니다.
@@ -237,7 +305,7 @@ BM25 상위 점수의 낙차 `gap = (s[0]-s[9])/s[0]`로 난이도를 3분할했
 | **쿼리 재작성 — 확장 x1** | **+0.0127** | 성공 (200건 표본) |
 | **entity-swap (swap30)** | **+0.0114** | 성공 |
 | per-category override (test) | +0.0027 → 0 | 레버가 늘자 소멸 |
-| semantic 뷰 (ws_sem0.3) | +0.0007 | 미미 |
+| semantic view (ws_sem0.3) | +0.0007 | 미미 |
 | 죄명 쿼리 확장 (LEGAR) | +0.0008 | 미미 |
 | 추출 품질 개선 (조문 36%→99.8%) | 0.0000 | 무효 |
 | 조문·죄명 가산점 | 가중치↑ → 단조 감소 | 실패 |
@@ -262,7 +330,7 @@ swap30→swap100. 판례 검색에서 BM25의 원문 매칭이 지배적이고 �
 정보가 본문에 있어 메타데이터가 BM25와 중복된다 — 변별력(lift 11.4x, 정답 일치율 78%)은 있지만
 BM25가 이미 상위에 올린 문서를 재확인할 뿐 새 문서를 데려오지 않는다.
 
-### semantic 뷰
+### semantic view
 
 bge-m3로 4개 데이터셋 84,257건 인코딩(약 8분, 182MB), 디스크 선계산.
 **판례 검색에서 semantic은 보조 신호다** — 단독으로는 BM25에 한참 못 미치고
@@ -274,6 +342,12 @@ bge-m3로 4개 데이터셋 84,257건 인코딩(약 8분, 182MB), 디스크 선�
 문서 길이에 종속된 데이터셋별 차원이다.
 
 ### 임베딩 모델 비교 (LeCaRDv2 train, max_len 512 고정)
+
+> **2026-11-10**: `max_len 512 고정`은 세 후보를 공정하게 비교하기 위한 조치였는데,
+> 비교가 끝난 뒤에도 512로 계속 돌렸다. 셋 중 **bge-m3만 8192를 읽는다**(e5-large 512,
+> embeddinggemma 2048) — 고른 이유였던 능력을 꺼 둔 채 모든 실행을 했다. 기본값을
+> 8192로 바꿨고, 아래 표의 숫자는 **512에서 측정한 것**이다. 모델 순위 자체는 셋 다
+> 512였으므로 유효하지만, bge-m3의 우위는 8192에서 더 커질 수 있다.
 
 논문은 `BAAI/bge-base-en-v1.5`(영어 전용)를 쓴다. BGE 계열의 다국어 모델이 `bge-m3`다.
 
@@ -295,8 +369,8 @@ EvolveMem은 이 기능을 `category == 5`(LoCoMo 적대적 split)에 하드코�
 이름은 사건 유사성과 무관하므로 모든 쿼리에 유효하다. `search()`에서 per-class override를 직접
 해석하고 `category=5`를 항상 넘겨 게이팅을 풀었다(5줄, 로직 복제 없음).
 
-**조건부 레버다**: `bm25_swap30` = 정확히 +0.0000. `keyword_only`는 `first_found` 융합이라
-swap 결과가 뒤에 붙기만 한다 — **점수 융합(`weighted_sum`)과 짝지어야 작동**한다.
+**조건부 레버다**: `bm25_swap30` = 정확히 +0.0000. `keyword_only`는 `first_found` fusion이라
+swap 결과가 뒤에 붙기만 한다 — **점수 fusion(`weighted_sum`)과 짝지어야 작동**한다.
 `swap30`(0.4154) > `swap100`(0.4081): 이름을 뺀 질의는 정밀도가 낮아 얕게 가져와야 한다.
 
 ### 쿼리 재작성 (LLM, Qwen3-30B)
@@ -316,13 +390,13 @@ swap 결과가 뒤에 붙기만 한다 — **점수 융합(`weighted_sum`)과 �
 구체적 서술 위에 얇게 얹히면 보조 신호가 된다. EvolveMem의 `intent_planning`(멀티홉 분해)은
 −0.088로 해로웠다 — 판례 사실관계에는 쪼갤 "홉"이 없다.
 
-## 6. 자가진화 루프 — 4회 실행 결과 (레시피 투입 **전**)
+## 6. self-evolution 루프 — 4회 실행 결과 (레시피 투입 **전**)
 
 > 이 절은 **해결 전 기록**이다. 아래의 "매 실행 R1에서 멈춘다"는 더 이상 현재 상태가 아니다 —
 > 법률 레시피 8장을 넣어 해결됐다(§0, METHODOLOGY §7·§9).
 
 엔진은 QA용이다(검색 → 답변 생성 → token-F1). 검색 과제로 바꾸되 루프 자체
-(diagnose → propose → guard → revert)는 건드리지 않았다. `legal_evolve.py`의 세 이음매:
+(diagnose → propose → guard → revert)는 건드리지 않았다. `legal_evolve.py`의 세 seam:
 
 1. `evolution.MultiViewIndex`를 미리 만든 `LegalIndex` 반환 팩토리로 치환
 2. `_generate_answer`가 답변 대신 **doc_id를 반환** — 답변 생성을 루프에서 제거해
@@ -373,7 +447,7 @@ benchmarks"*라고 하지만 실제로는:
 sub-queries (e.g., 'what crime was committed?', 'was there coercion?')"*. 다만 **레버 선택은
 바뀌지 않았고 궤적도 동일**했다.
 
-### 추가한 액션 스페이스 차원
+### 추가한 action space 차원
 
 `enable_chapter_filter`(쿼리와 다른 장의 판례를 점수 계산 전에 제외). 논문 §3.3의
 self-expanding 주장과 같은 성격. 기본값 `False`로 기존 동작 불변. 실측은 **−0.0832로 해로웠다**.
@@ -383,8 +457,8 @@ self-expanding 주장과 같은 성격. 기본값 `False`로 기존 동작 불�
 ### ~~진화 루프 정체 (미결정)~~ → 해결됨
 
 당시 선택지는 (A) explore 분기 복원 / (B) temperature 상향 / (C) 정체를 결과로 보고 였다.
-**셋 다 아니었다.** 실제 원인은 레시피 풀이 비어 있던 것이고, (A)의 전제("레포가 Eq.4를
-빠뜨렸다")도 틀렸다 — explore는 벤치마크별 레시피로 구현되어 있고 법률 풀만 없었다.
+**셋 다 아니었다.** 실제 원인은 레시피 pool이 비어 있던 것이고, (A)의 전제("레포가 Eq.4를
+빠뜨렸다")도 틀렸다 — explore는 벤치마크별 레시피로 구현되어 있고 법률 pool만 없었다.
 
 ### 쿼리 재작성 검증 (진행 중)
 
@@ -401,7 +475,7 @@ train 640 확대 → test 검증 → LEGAR(ko)·COLIEE(en) 전이. COLIEE는 ent
 
 - 기존 신경망 방법(BERT-aux/RankNet/Joint) 재평가 — 체크포인트 재추론 → run 파일 → 동일 평가기
 - LEGAR 죄명 추출 26% 노이즈 (본문 정규식). 분류는 공식 d1으로 해결됐으나 메타데이터는 미정리
-- 쿼리 재작성을 액션 스페이스 차원으로 추가(`enable_query_rewrite` + 반복 횟수)
+- 쿼리 재작성을 action space 차원으로 추가(`enable_query_rewrite` + 반복 횟수)
 
 ## 8. 실행 방법
 
@@ -433,7 +507,7 @@ PATH=$PWD/.venv-vllm/bin:$PATH HF_HOME=/home/yoosun/.cache/hf CUDA_VISIBLE_DEVIC
   --port 8000 --gpu-memory-utilization 0.85 --max-model-len 131072 \
   --served-model-name qwen --enforce-eager
 
-# 7. 자가진화 루프 (train에서만, test 보존)
+# 7. self-evolution 루프 (train에서만, test 보존)
 $V legal_evolve.py --dataset LeCaRDv2 --split train --rounds 7 --model qwen
 
 # 8. 쿼리 재작성 (LLM 1회/쿼리, 디스크 캐싱)

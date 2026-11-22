@@ -6,11 +6,12 @@ has 57 charge names across 107 queries -- so both are folded up into the code's
 own chapter structure, which is a real legal taxonomy rather than an invented
 clustering, and which leaves tens of queries per class.
 
-Axis B (difficulty): how the corpus responds to the query, independent of any
-benchmark. Built from the lexical score profile only, so it carries over to a
-benchmark whose legal taxonomy is uninformative -- COLIEE labels 79% of its
-queries "civil/other" -- and uses no relevance labels, so it is available at
-query time rather than only in evaluation.
+Axis B (difficulty, from the lexical score profile) is RETIRED: it predicted
+how hard a query is, weakly, without predicting that a different
+configuration would serve it better, and the per-class gain fell to zero once
+a globally good lever existed (METHODOLOGY 6). Its scoring, bucketing and
+fitting functions were removed on 2026-11-22; `composite` keeps its two-part
+key so rebuilt category ids match the ones already on disk.
 """
 from __future__ import annotations
 import collections
@@ -252,41 +253,6 @@ def build_charge_to_article(cases: list[dict]) -> dict[str, int]:
         for c in m.get("charges", []):
             votes[c][min(arts)] += 1
     return {c: v.most_common(1)[0][0] for c, v in votes.items() if v}
-
-
-# ── Axis B: difficulty from the lexical score profile ─────────────────────
-def score_profile(scores: list[float]) -> dict:
-    """Shape of the top-k lexical scores: how sharply the corpus separates."""
-    s = sorted((float(x) for x in scores), reverse=True)[:30]
-    if not s or s[0] <= 0:
-        return {"top1": 0.0, "gap": 0.0, "entropy": 0.0}
-    top1 = s[0]
-    gap = (s[0] - s[min(9, len(s) - 1)]) / s[0]
-    tot = sum(s) or 1.0
-    p = [x / tot for x in s if x > 0]
-    ent = -sum(q * math.log(q) for q in p) / math.log(len(p)) if len(p) > 1 else 0.0
-    return {"top1": top1, "gap": gap, "entropy": ent}
-
-
-def difficulty_class(profile: dict, cuts: dict) -> str:
-    """Bucket a query by how peaked its score profile is.
-
-    `cuts` holds the gap terciles fitted on the training split, so the test
-    split never influences its own bucketing.
-    """
-    g = profile.get("gap", 0.0)
-    if g >= cuts["hi"]:
-        return "B1_변별적"      # one clear winner
-    if g >= cuts["lo"]:
-        return "B2_중간"
-    return "B3_평탄"            # many near-equal candidates
-
-
-def fit_difficulty_cuts(profiles: list[dict]) -> dict:
-    gaps = sorted(p.get("gap", 0.0) for p in profiles)
-    if not gaps:
-        return {"lo": 0.0, "hi": 0.0}
-    return {"lo": gaps[len(gaps) // 3], "hi": gaps[2 * len(gaps) // 3]}
 
 
 # ── Composite category ────────────────────────────────────────────────────

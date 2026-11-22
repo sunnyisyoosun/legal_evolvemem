@@ -16,44 +16,32 @@ import argparse, json, os, sys, time, collections, statistics as st
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import legal_retriever as L
+import registry as REG
 from evolvemem.multi_retriever import RetrievalConfig
 from evaluate import CASE_DIR, QRELS, EVAL_K, weak_config
 
 CACHE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cache", "rewrite")
 
-PROMPTS = {
-    "zh": """你是法律检索助手。下面是一份刑事案件的事实描述。
+# The rewrite prompt is no longer a constant: it is assembled from the Rule
+# pool (recipes.RULES), the third recipe type. A Rule is text, not a field --
+# `query_rewrite_repeat` is the only trace rewriting had in RetrievalConfig,
+# and an integer cannot say WHAT to rewrite. METHODOLOGY 3 ("세 타입").
+#
+# With the single seed rule the assembled string is byte-identical to the
+# constant that used to live here, which is what keeps cache/rewrite/*.json
+# attributable: the cache is keyed by query id, so a changed prompt would
+# silently leave old rewrites in place under a new rule. verify.py asserts
+# the identity, and `cache_stamp()` is what a new pool must write beside the
+# cache so the two cannot drift unnoticed.
+PROMPTS = {lang: REG.assemble_rewrite_prompt(lang) for lang in ("zh", "ko", "en")}
 
-请改写成一个用于检索相似判例的查询，要求：
-1. 删除所有当事人姓名、地名、车牌号、身份证号、具体日期和具体金额数字
-2. 保留犯罪手段、行为方式、情节特征、法律争点
-3. 用简洁的法律术语表述，不要叙事
 
-事实描述：
-{text}
-
-只输出改写后的查询，不要解释。""",
-    "ko": """다음은 형사사건 사실관계입니다.
-
-유사 판례 검색용 질의로 바꾸세요:
-1. 당사자 이름, 지명, 차량번호, 구체적 날짜·금액은 제거
-2. 범행 수법, 행위 유형, 법적 쟁점은 유지
-3. 서사가 아닌 간결한 법률 용어로
-
-사실관계:
-{text}
-
-변환된 질의만 출력하세요.""",
-    "en": """Rewrite the following case facts into a query for retrieving similar cases.
-
-Drop party names, places, dates and exact amounts. Keep the legal issue, the
-area of law, and the conduct at stake. Use concise legal terms, not narrative.
-
-Case facts:
-{text}
-
-Output only the rewritten query.""",
-}
+def cache_stamp(lang: str) -> str:
+    """Identity of the prompt that produced a cache, for the sidecar."""
+    import hashlib
+    names = ",".join(r.name for r in REG.RULES)
+    digest = hashlib.sha256(PROMPTS[lang].encode("utf-8")).hexdigest()[:12]
+    return f"{names}|{lang}|{digest}"
 
 
 def rewrite_all(llm, dataset: str, rows: list[dict], lang: str,
@@ -75,6 +63,13 @@ def rewrite_all(llm, dataset: str, rows: list[dict], lang: str,
     if cache_path:
         os.makedirs(os.path.dirname(cache_path), exist_ok=True)
         json.dump(cache, open(cache_path, "w", encoding="utf-8"), ensure_ascii=False)
+        # Which rule produced this cache. The cache is keyed by query id, so
+        # a pool change leaves every old rewrite in place under a new rule
+        # and nothing notices; measure_recipes.py refuses to attribute a
+        # measurement to a rule the stamp does not name.
+        with open(os.path.splitext(cache_path)[0] + ".stamp", "w",
+                  encoding="utf-8") as f:
+            f.write(cache_stamp(lang) + "\n")
     return cache
 
 

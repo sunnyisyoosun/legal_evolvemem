@@ -70,8 +70,8 @@ def show_query(ds: str, split: str, nth: int, top: int):
                            semantic_top_k=100, structured_top_k=0,
                            max_context=100, weight_keyword=1.0,
                            weight_semantic=0.3, enable_entity_swap=True,
-                           entity_swap_keyword_k=30,
-                           entity_swap_semantic_k=30))):
+                           entity_swap_keyword_k=100,
+                           entity_swap_semantic_k=0))):
         ranked = L.search(index, q, cfg, top_n=30)
         m = L.MBR.compute_query_metrics(ranked, labels[q["query_id"]], EVAL_K)
         hit = [i + 1 for i, d in enumerate(ranked) if d in gold][:5]

@@ -1,158 +1,152 @@
-"""Measure the hand-written recipes with the same instrument the learned ones face.
+"""Measure each RULE's lift on train, with a paired bootstrap CI.
 
-Why this exists
----------------
-`RECIPES_LEGAL`'s `expected_lift_pp` values were typed in by hand from the
-sweep in METHODOLOGY 8 -- and that sweep was run on TEST. The numbers are
-test leakage, and they are not inert data: `format_recipes_for_prompt`
-renders them into the diagnosis prompt as fact, so every evolution round has
-been steered by them. Replacing them is the precondition for re-running any
-evolution.
+    python3 measure_recipes.py                       # every dataset with a cache
+    python3 measure_recipes.py --datasets LeCaRDv2
 
-Two things had to change, not one.
+Writes rule_lifts.json, which `recipe_learning.apply_measured_lifts` renders
+into the diagnosis prompt.
 
-1. The fold. The loop's fitness is train (METHODOLOGY 5), so a lift shown to
-   the diagnosis LLM has to be a train measurement.
-2. The baseline. A card's lift only means something measured from a state
-   where its trigger FIRES. The old numbers came from a 7-setting sweep whose
-   configurations do not line up with the cards one-to-one: `undo_structured_view`
-   is "turn the metadata view off", and no sweep row isolates that.
+Why this file is a third of what it was
+---------------------------------------
+It used to measure every card in RECIPES_LEGAL. After the recipe type split
+(METHODOLOGY 3) only one of the three types has a lift to measure:
 
-So each card is measured the way a learned candidate is (recipe_learning):
-build a config that satisfies the card's own trigger, score it, apply the
-card's proposal, score again, and take a paired bootstrap CI over the
-per-query differences. A card whose CI includes zero gets 0.0 -- not because
-the card is useless, but because we cannot claim a number for it.
+    Bundle     -- carries no values. There is nothing to apply, so there is
+                  no delta. Its admission test is a 2x2 interaction, not an
+                  effect, and that is a different script.
+    Constraint -- declares a forbidden state. Not a move.
+    Rule       -- rewrites the query. It HAS an effect on the ranking, and
+                  its admission test IS that effect (CI lower bound > 0,
+                  mean > the dataset's noise floor, endpoint > theta_0).
 
-The hand-written triggers are Python lambdas, not the declarative form a
-learned candidate uses, so the trigger state cannot be derived from them
-automatically. TRIGGER_STATES below spells out, per card, a config the card's
-own trigger accepts; each one is asserted against the real trigger before
-anything is measured, so a wrong guess fails loudly instead of producing a
-number from the wrong state.
+The other half of what this file used to do was supply the acceptance
+threshold: `noise_floor()` read the median CI half-width out of the table
+written here. That was never this file's job -- it made the threshold a
+property of the recipe pool -- and it now lives in `noise_floor.py`, which
+samples fixed config pairs instead. `recipe_lifts.json` stays on disk as the
+read-only fallback for a checkout that has not run the estimator yet.
+
+What measuring a rule means
+---------------------------
+A rule is text; what it produces is the rewrite cache. So "measure rule R on
+dataset D" is: with cache/rewrite/D.json built FROM R, compare
+enable_query_rewrite off vs on. The cache is keyed by query id and says
+nothing about which prompt made it, so a cache built from one rule and
+scored as another would be unattributable -- `query_rewrite.cache_stamp()`
+is written beside it and checked here.
 """
 from __future__ import annotations
-import argparse, json, os, statistics as st, sys, time
-from dataclasses import asdict, replace
+import argparse, json, os, sys, time
+from dataclasses import replace
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import legal_retriever as L
-import recipe_learning as RL
-from legal_meta import LANG_OF
-from evaluate import CASE_DIR, QRELS, EVAL_K, in_split, weak_config
-from evolvemem.evolution_cookbook import RECIPES_LEGAL
+import legal_retriever as L                      # noqa: E402
+import recipe_learning as RL                     # noqa: E402
+import registry as REG                           # noqa: E402
+import query_rewrite as QR                       # noqa: E402
+from evaluate import load_fold, per_query, weak_config   # noqa: E402
+from legal_meta import LANG_OF                   # noqa: E402
 
-PRIMARY = "NDCG@30"
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                   "recipe_lifts.json")
+                   "rule_lifts.json")
 
-# A state each card's trigger accepts, as a diff from theta_0. Asserted below.
-TRIGGER_STATES: dict[str, dict] = {
-    # fusion off -> the foundation card fires at theta_0 itself
-    "lexical_first_light_semantic": {},
-    # needs score fusion on and swap off/shallow
-    "entity_swap_shallow": {"fusion_mode": "weighted_sum",
-                            "semantic_top_k": 100, "weight_semantic": 0.3},
-    # needs fusion on, swap off, rewrite off
-    "query_rewrite_append_once": {"fusion_mode": "weighted_sum",
-                                  "semantic_top_k": 100, "weight_semantic": 0.3},
-    # weighted-sum with an overweighted auxiliary view
-    "undo_auxiliary_overweight": {"fusion_mode": "weighted_sum",
-                                  "semantic_top_k": 100, "weight_semantic": 1.0,
-                                  "structured_top_k": 10, "weight_structured": 0.5},
-    "undo_structured_view": {"fusion_mode": "weighted_sum",
-                             "semantic_top_k": 100, "weight_semantic": 0.3,
-                             "structured_top_k": 10, "weight_structured": 0.5},
-    # the per-query LLM levers turned on
-    "undo_query_decomposition": {"fusion_mode": "weighted_sum",
-                                 "semantic_top_k": 100, "weight_semantic": 0.3,
-                                 "enable_intent_planning": True},
-    "undo_chapter_filter": {"fusion_mode": "weighted_sum",
-                            "semantic_top_k": 100, "weight_semantic": 0.3,
-                            "enable_chapter_filter": True},
-    # stalled, with a deep swap already on -- the history argument is what
-    # `_consec_noaccept` reads, so a stalled history is supplied too
-    "escape_plateau_shallower_swap": {"fusion_mode": "rrf",
-                                      "semantic_top_k": 100, "weight_semantic": 0.3,
-                                      "enable_entity_swap": True,
-                                      "entity_swap_keyword_k": 30,
-                                      "entity_swap_semantic_k": 30},
-}
-STALLED = [{"accepted": False, "llm_status": "ok", "f1_after": 0.0}] * 3
+# A rule is measured from a state someone could stand on, not from theta_0:
+# at theta_0 the semantic view is off and fusion does nothing, so a lexical
+# rewrite is measured against a configuration no tuned run would hold. Same
+# requirement as recipe_learning.REPRESENTATIVE, and the same depths as
+# noise_floor.py's fused base so the two are comparable.
+BASE = {"fusion_mode": "rrf", "semantic_top_k": 100, "structured_top_k": 100,
+        "enable_entity_swap": True, "entity_swap_keyword_k": 100,
+        "weight_semantic": 0.3, "weight_structured": 0.1}
 
 
-def per_query(index, rows, labels, cfg) -> list[float]:
-    out = []
-    for q in rows:
-        r = L.search(index, q, cfg, top_n=30)
-        out.append(L.MBR.compute_query_metrics(
-            r, labels[q["query_id"]], EVAL_K)[PRIMARY])
-    return out
+def cache_provenance(ds: str) -> tuple[str, str]:
+    """(stamp on disk, note). Empty stamp means the cache predates stamping."""
+    path = os.path.join(L.REWRITE_DIR, f"{ds}.stamp")
+    try:
+        with open(path, encoding="utf-8") as f:
+            return (f.read().strip(), "")
+    except OSError:
+        return ("", f"no {ds}.stamp: cache predates stamping, assumed to be "
+                    f"the seed rule")
 
 
-def main():
+def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--datasets", nargs="*", default=sorted(LANG_OF))
-    ap.add_argument("--split", default="train", choices=["train", "val"])
+    ap.add_argument("--datasets", nargs="+",
+                    default=["LeCaRDv2", "LeCaRD", "COLIEE", "LEGAR_stricter"])
+    ap.add_argument("--split", default="train")
     ap.add_argument("--out", default=OUT)
     a = ap.parse_args()
 
-    # Fail before measuring anything if a declared state does not satisfy the
-    # card's real trigger: a number from the wrong state is worse than none.
-    base0 = asdict(weak_config())
-    for r in RECIPES_LEGAL:
-        if r.name not in TRIGGER_STATES:
-            raise SystemExit(f"no trigger state declared for {r.name}")
-        cfg = dict(base0, **TRIGGER_STATES[r.name])
-        hist = STALLED if "escape" in r.name else []
-        if not r.trigger({}, cfg, hist):
-            raise SystemExit(f"declared state does not fire {r.name}: "
-                             f"{TRIGGER_STATES[r.name]}")
-        changed = [k for k, v in r.proposal.items() if cfg.get(k) != v]
-        if not changed:
-            raise SystemExit(f"{r.name} is a no-op in its declared state")
-    print(f"{len(RECIPES_LEGAL)} cards: trigger states verified\n", flush=True)
+    # Merge, never overwrite: one dataset's re-measurement must not delete
+    # three others' rows.
+    try:
+        table = json.load(open(a.out, encoding="utf-8"))
+    except (OSError, ValueError):
+        table = {}
 
-    table = {}
     for ds in a.datasets:
-        cases = json.load(open(f"{CASE_DIR}/{ds}_cases.json", encoding="utf-8"))
-        qs = json.load(open(f"{CASE_DIR}/{ds}_queries.json", encoding="utf-8"))
-        labels = L.MBR.load_qrels(QRELS.format(ds=ds))
-        rows = [q for q in qs if q["query_id"] in labels and in_split(q, a.split)]
-        index = L.build_index(ds, cases, qs)
-        print(f"[{ds}] {a.split} n={len(rows)}", flush=True)
+        if not L.load_rewrites(ds):
+            print(f"[{ds}] no rewrite cache -- the rule cannot act here, "
+                  f"so there is nothing to measure", flush=True)
+            continue
+        stamp, note = cache_provenance(ds)
+        index, rows, labels = load_fold(ds, a.split)
+        floor, floor_src = RL.noise_floor(ds)
         t0cfg = weak_config()
-        cache: dict = {}
-        table[ds] = {"n": len(rows), "split": a.split, "cards": {}}
-        for r in RECIPES_LEGAL:
+        base_cfg = replace(t0cfg, **BASE)
+        t0v = per_query(index, rows, labels, t0cfg)
+        t0mean = sum(t0v) / len(t0v)
+        print(f"[{ds}] {a.split} n={len(rows)}  theta_0 {t0mean:.4f}  "
+              f"floor {floor:.5f}", flush=True)
+        print(f"  floor source: {floor_src}", flush=True)
+        if note:
+            print(f"  WARNING {note}", flush=True)
+
+        rows_out, base_scores = {}, None
+        for rule in REG.RULES:
+            expected = QR.cache_stamp(LANG_OF[ds])
+            if stamp and stamp != expected:
+                print(f"  {rule.name}: SKIPPED -- cache was built by "
+                      f"{stamp!r}, not {expected!r}. Rebuild the cache for "
+                      f"this rule before measuring it.", flush=True)
+                continue
             t = time.time()
-            state = TRIGGER_STATES[r.name]
-            key = json.dumps(state, sort_keys=True)
-            bcfg = replace(t0cfg, **state)
-            if key not in cache:
-                cache[key] = per_query(index, rows, labels, bcfg)
-            bv = cache[key]
-            av = per_query(index, rows, labels, replace(bcfg, **r.proposal))
-            d = [y - x for x, y in zip(bv, av)]
-            lo, hi = RL.bootstrap_ci(d, alpha=RL.ALPHA)
-            mean = st.fmean(d)
-            # Shown to the LLM only when the interval clears zero.
-            claim = round(mean * 100, 2) if lo > 0 else 0.0
-            table[ds]["cards"][r.name] = {
-                "delta": round(mean, 4), "ci95": [round(lo, 4), round(hi, 4)],
-                "base": round(st.fmean(bv), 4), "after": round(st.fmean(av), 4),
-                "claim_pp": claim, "old_pp": r.expected_lift_pp,
-                "measured_from": state,
+            m = RL.measure_pair(index, rows, labels, base_cfg,
+                                {"enable_query_rewrite": True},
+                                base_scores=base_scores)
+            base_scores = m["base_scores"]          # one base, every rule
+            ok_ci = m["ci95"][0] > 0
+            ok_size = m["delta"] > floor
+            ok_abs = m["after"] > t0mean
+            claim = round(m["delta"] * 100, 2) if (ok_ci and ok_size and ok_abs) else 0.0
+            why = "" if claim else " [" + ",".join(
+                n for n, k in (("ci", ok_ci), ("size", ok_size),
+                               ("<t0", ok_abs)) if not k) + "]"
+            rows_out[rule.name] = {
+                "delta": round(m["delta"], 5),
+                "ci95": [round(m["ci95"][0], 5), round(m["ci95"][1], 5)],
+                "base": round(m["base"], 4), "after": round(m["after"], 4),
+                "theta0": round(t0mean, 4),
+                "vs_theta0": round(m["after"] - t0mean, 4),
+                "claim_pp": claim, "measured_from": BASE,
+                "cache_stamp": stamp or "(unstamped)",
+                "zero_reason": why.strip(" []") or "",
             }
-            print(f"  {r.name:34s} {st.fmean(bv):.4f} -> {st.fmean(av):.4f}  "
-                  f"{mean:+.4f}  CI[{lo:+.4f},{hi:+.4f}]  "
-                  f"claim {claim:+.2f}pp (was {r.expected_lift_pp:+.1f})  "
-                  f"({time.time()-t:.0f}s)", flush=True)
-        del index
-        json.dump(table, open(a.out, "w", encoding="utf-8"),
-                  indent=2, ensure_ascii=False)
-    print(f"\n-> {a.out}")
+            print(f"  {rule.name:24s} {m['delta']:+.4f}  CI95 "
+                  f"[{m['ci95'][0]:+.4f},{m['ci95'][1]:+.4f}]  "
+                  f"claim {claim:+.2f}pp{why}  ({time.time() - t:.0f}s)",
+                  flush=True)
+
+        table[ds] = {"n": len(rows), "split": a.split, "rules": rows_out}
+        # Written per dataset: see noise_floor.py for why.
+        with open(a.out, "w", encoding="utf-8") as f:
+            json.dump(table, f, ensure_ascii=False, indent=1)
+
+    print(f"{a.out}: {', '.join(sorted(table))}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

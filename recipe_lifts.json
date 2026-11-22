@@ -4,31 +4,50 @@
     "split": "train",
     "cards": {
       "lexical_first_light_semantic": {
-        "delta": -0.0033,
+        "delta": -0.0055,
         "ci95": [
-          -0.0091,
-          0.0027
+          -0.0136,
+          0.0034
         ],
-        "base": 0.1839,
-        "after": 0.1806,
+        "base": 0.2413,
+        "after": 0.2358,
+        "theta0": 0.2413,
+        "vs_theta0": -0.0055,
         "claim_pp": 0.0,
-        "old_pp": 0.1,
-        "measured_from": {}
+        "old_pp": 0.0,
+        "measured_from": {},
+        "per_field": {
+          "fusion_mode": {
+            "delta": 0.0,
+            "ci95": [
+              0.0,
+              0.0
+            ]
+          },
+          "semantic_top_k": {
+            "delta": 0.0,
+            "ci95": [
+              0.0,
+              0.0
+            ]
+          }
+        }
       },
       "entity_swap_shallow": {
-        "delta": 0.0039,
+        "delta": 0.0027,
         "ci95": [
-          -0.0004,
-          0.0081
+          0.0007,
+          0.0047
         ],
-        "base": 0.1806,
-        "after": 0.1845,
+        "base": 0.2358,
+        "after": 0.2385,
+        "theta0": 0.2413,
+        "vs_theta0": -0.0028,
         "claim_pp": 0.0,
-        "old_pp": 1.4,
+        "old_pp": 0.0,
         "measured_from": {
-          "fusion_mode": "weighted_sum",
-          "semantic_top_k": 100,
-          "weight_semantic": 0.3
+          "fusion_mode": "rrf",
+          "semantic_top_k": 100
         }
       },
       "query_rewrite_append_once": {
@@ -37,103 +56,52 @@
           0.0,
           0.0
         ],
-        "base": 0.1806,
-        "after": 0.1806,
+        "base": 0.2358,
+        "after": 0.2358,
+        "theta0": 0.2413,
+        "vs_theta0": -0.0055,
         "claim_pp": 0.0,
-        "old_pp": 1.3,
+        "old_pp": 0.0,
         "measured_from": {
-          "fusion_mode": "weighted_sum",
-          "semantic_top_k": 100,
-          "weight_semantic": 0.3
-        }
-      },
-      "undo_auxiliary_overweight": {
-        "delta": 0.0057,
-        "ci95": [
-          0.001,
-          0.0104
-        ],
-        "base": 0.1782,
-        "after": 0.1838,
-        "claim_pp": 0.57,
-        "old_pp": 2.4,
-        "measured_from": {
-          "fusion_mode": "weighted_sum",
-          "semantic_top_k": 100,
-          "weight_semantic": 1.0,
-          "structured_top_k": 10,
-          "weight_structured": 0.5
+          "fusion_mode": "rrf",
+          "semantic_top_k": 100
         }
       },
       "undo_structured_view": {
-        "delta": -0.0023,
+        "delta": -0.0015,
         "ci95": [
-          -0.0067,
+          -0.0053,
           0.0023
         ],
-        "base": 0.183,
-        "after": 0.1806,
+        "base": 0.2374,
+        "after": 0.2358,
+        "theta0": 0.2413,
+        "vs_theta0": -0.0055,
         "claim_pp": 0.0,
-        "old_pp": 9.0,
+        "old_pp": 0.0,
         "measured_from": {
-          "fusion_mode": "weighted_sum",
+          "fusion_mode": "rrf",
           "semantic_top_k": 100,
-          "weight_semantic": 0.3,
           "structured_top_k": 10,
           "weight_structured": 0.5
         }
       },
-      "undo_query_decomposition": {
-        "delta": 0.0,
-        "ci95": [
-          0.0,
-          0.0
-        ],
-        "base": 0.1806,
-        "after": 0.1806,
-        "claim_pp": 0.0,
-        "old_pp": 8.8,
-        "measured_from": {
-          "fusion_mode": "weighted_sum",
-          "semantic_top_k": 100,
-          "weight_semantic": 0.3,
-          "enable_intent_planning": true
-        }
-      },
       "undo_chapter_filter": {
-        "delta": 0.0379,
+        "delta": 0.0619,
         "ci95": [
-          0.0282,
-          0.0482
+          0.0513,
+          0.0731
         ],
-        "base": 0.1427,
-        "after": 0.1806,
-        "claim_pp": 3.79,
-        "old_pp": 8.3,
-        "measured_from": {
-          "fusion_mode": "weighted_sum",
-          "semantic_top_k": 100,
-          "weight_semantic": 0.3,
-          "enable_chapter_filter": true
-        }
-      },
-      "escape_plateau_shallower_swap": {
-        "delta": -0.0,
-        "ci95": [
-          -0.0018,
-          0.002
-        ],
-        "base": 0.1845,
-        "after": 0.1845,
+        "base": 0.1739,
+        "after": 0.2358,
+        "theta0": 0.2413,
+        "vs_theta0": -0.0055,
         "claim_pp": 0.0,
-        "old_pp": 0.3,
+        "old_pp": 0.0,
         "measured_from": {
           "fusion_mode": "rrf",
           "semantic_top_k": 100,
-          "weight_semantic": 0.3,
-          "enable_entity_swap": true,
-          "entity_swap_keyword_k": 30,
-          "entity_swap_semantic_k": 30
+          "enable_chapter_filter": true
         }
       }
     }
@@ -143,25 +111,25 @@
     "split": "train",
     "cards": {
       "lexical_first_light_semantic": {
-        "delta": 0.0097,
+        "delta": 0.0059,
         "ci95": [
-          0.0074,
-          0.0122
+          0.0035,
+          0.0082
         ],
-        "base": 0.0363,
-        "after": 0.046,
-        "claim_pp": 0.97,
+        "base": 0.0516,
+        "after": 0.0574,
+        "claim_pp": 0.59,
         "old_pp": 0.1,
         "measured_from": {}
       },
       "entity_swap_shallow": {
-        "delta": -0.0035,
+        "delta": 0.0006,
         "ci95": [
-          -0.0054,
-          -0.0018
+          -0.0011,
+          0.0023
         ],
-        "base": 0.046,
-        "after": 0.0425,
+        "base": 0.0574,
+        "after": 0.0581,
         "claim_pp": 0.0,
         "old_pp": 1.4,
         "measured_from": {
@@ -176,8 +144,8 @@
           0.0,
           0.0
         ],
-        "base": 0.046,
-        "after": 0.046,
+        "base": 0.0574,
+        "after": 0.0574,
         "claim_pp": 0.0,
         "old_pp": 1.3,
         "measured_from": {
@@ -187,13 +155,13 @@
         }
       },
       "undo_auxiliary_overweight": {
-        "delta": -0.0145,
+        "delta": -0.0033,
         "ci95": [
-          -0.0169,
-          -0.012
+          -0.0048,
+          -0.0019
         ],
-        "base": 0.061,
-        "after": 0.0466,
+        "base": 0.0605,
+        "after": 0.0572,
         "claim_pp": 0.0,
         "old_pp": 2.4,
         "measured_from": {
@@ -205,14 +173,14 @@
         }
       },
       "undo_structured_view": {
-        "delta": -0.0006,
+        "delta": 0.0028,
         "ci95": [
-          -0.0022,
-          0.001
+          0.0006,
+          0.005
         ],
-        "base": 0.0466,
-        "after": 0.046,
-        "claim_pp": 0.0,
+        "base": 0.0546,
+        "after": 0.0574,
+        "claim_pp": 0.28,
         "old_pp": 9.0,
         "measured_from": {
           "fusion_mode": "weighted_sum",
@@ -228,8 +196,8 @@
           0.0,
           0.0
         ],
-        "base": 0.046,
-        "after": 0.046,
+        "base": 0.0574,
+        "after": 0.0574,
         "claim_pp": 0.0,
         "old_pp": 8.8,
         "measured_from": {
@@ -240,13 +208,13 @@
         }
       },
       "undo_chapter_filter": {
-        "delta": -0.0014,
+        "delta": -0.0001,
         "ci95": [
-          -0.0031,
-          0.0005
+          -0.0019,
+          0.0017
         ],
-        "base": 0.0473,
-        "after": 0.046,
+        "base": 0.0575,
+        "after": 0.0574,
         "claim_pp": 0.0,
         "old_pp": 8.3,
         "measured_from": {
@@ -257,13 +225,13 @@
         }
       },
       "escape_plateau_shallower_swap": {
-        "delta": -0.0012,
+        "delta": -0.0016,
         "ci95": [
-          -0.0022,
-          -0.0002
+          -0.0026,
+          -0.0006
         ],
-        "base": 0.0425,
-        "after": 0.0413,
+        "base": 0.0581,
+        "after": 0.0565,
         "claim_pp": 0.0,
         "old_pp": 0.3,
         "measured_from": {
@@ -282,31 +250,50 @@
     "split": "train",
     "cards": {
       "lexical_first_light_semantic": {
-        "delta": -0.0428,
+        "delta": -0.1068,
         "ci95": [
-          -0.0709,
-          -0.0154
+          -0.1374,
+          -0.0758
         ],
-        "base": 0.6683,
-        "after": 0.6255,
+        "base": 0.6637,
+        "after": 0.557,
+        "theta0": 0.6637,
+        "vs_theta0": -0.1068,
         "claim_pp": 0.0,
-        "old_pp": 0.1,
-        "measured_from": {}
+        "old_pp": 0.0,
+        "measured_from": {},
+        "per_field": {
+          "fusion_mode": {
+            "delta": 0.0,
+            "ci95": [
+              0.0,
+              0.0
+            ]
+          },
+          "semantic_top_k": {
+            "delta": 0.0,
+            "ci95": [
+              0.0,
+              0.0
+            ]
+          }
+        }
       },
       "entity_swap_shallow": {
-        "delta": 0.0581,
+        "delta": 0.0312,
         "ci95": [
-          0.0349,
-          0.0822
+          0.0162,
+          0.046
         ],
-        "base": 0.6255,
-        "after": 0.6836,
-        "claim_pp": 5.81,
-        "old_pp": 1.4,
+        "base": 0.557,
+        "after": 0.5881,
+        "theta0": 0.6637,
+        "vs_theta0": -0.0756,
+        "claim_pp": 0.0,
+        "old_pp": 0.0,
         "measured_from": {
-          "fusion_mode": "weighted_sum",
-          "semantic_top_k": 100,
-          "weight_semantic": 0.3
+          "fusion_mode": "rrf",
+          "semantic_top_k": 100
         }
       },
       "query_rewrite_append_once": {
@@ -315,103 +302,52 @@
           0.0,
           0.0
         ],
-        "base": 0.6255,
-        "after": 0.6255,
+        "base": 0.557,
+        "after": 0.557,
+        "theta0": 0.6637,
+        "vs_theta0": -0.1068,
         "claim_pp": 0.0,
-        "old_pp": 1.3,
+        "old_pp": 0.0,
         "measured_from": {
-          "fusion_mode": "weighted_sum",
-          "semantic_top_k": 100,
-          "weight_semantic": 0.3
-        }
-      },
-      "undo_auxiliary_overweight": {
-        "delta": 0.114,
-        "ci95": [
-          0.0881,
-          0.1404
-        ],
-        "base": 0.5073,
-        "after": 0.6213,
-        "claim_pp": 11.4,
-        "old_pp": 2.4,
-        "measured_from": {
-          "fusion_mode": "weighted_sum",
-          "semantic_top_k": 100,
-          "weight_semantic": 1.0,
-          "structured_top_k": 10,
-          "weight_structured": 0.5
+          "fusion_mode": "rrf",
+          "semantic_top_k": 100
         }
       },
       "undo_structured_view": {
-        "delta": 0.0424,
+        "delta": 0.0037,
         "ci95": [
-          0.0271,
-          0.0588
+          -0.0017,
+          0.0088
         ],
-        "base": 0.5832,
-        "after": 0.6255,
-        "claim_pp": 4.24,
-        "old_pp": 9.0,
+        "base": 0.5533,
+        "after": 0.557,
+        "theta0": 0.6637,
+        "vs_theta0": -0.1068,
+        "claim_pp": 0.0,
+        "old_pp": 0.0,
         "measured_from": {
-          "fusion_mode": "weighted_sum",
+          "fusion_mode": "rrf",
           "semantic_top_k": 100,
-          "weight_semantic": 0.3,
           "structured_top_k": 10,
           "weight_structured": 0.5
         }
       },
-      "undo_query_decomposition": {
-        "delta": 0.0,
-        "ci95": [
-          0.0,
-          0.0
-        ],
-        "base": 0.6255,
-        "after": 0.6255,
-        "claim_pp": 0.0,
-        "old_pp": 8.8,
-        "measured_from": {
-          "fusion_mode": "weighted_sum",
-          "semantic_top_k": 100,
-          "weight_semantic": 0.3,
-          "enable_intent_planning": true
-        }
-      },
       "undo_chapter_filter": {
-        "delta": 0.1517,
+        "delta": 0.1356,
         "ci95": [
-          0.1031,
-          0.2042
+          0.0886,
+          0.1847
         ],
-        "base": 0.4738,
-        "after": 0.6255,
-        "claim_pp": 15.17,
-        "old_pp": 8.3,
-        "measured_from": {
-          "fusion_mode": "weighted_sum",
-          "semantic_top_k": 100,
-          "weight_semantic": 0.3,
-          "enable_chapter_filter": true
-        }
-      },
-      "escape_plateau_shallower_swap": {
-        "delta": 0.0038,
-        "ci95": [
-          -0.0055,
-          0.0132
-        ],
-        "base": 0.6836,
-        "after": 0.6874,
+        "base": 0.4213,
+        "after": 0.557,
+        "theta0": 0.6637,
+        "vs_theta0": -0.1068,
         "claim_pp": 0.0,
-        "old_pp": 0.3,
+        "old_pp": 0.0,
         "measured_from": {
           "fusion_mode": "rrf",
           "semantic_top_k": 100,
-          "weight_semantic": 0.3,
-          "enable_entity_swap": true,
-          "entity_swap_keyword_k": 30,
-          "entity_swap_semantic_k": 30
+          "enable_chapter_filter": true
         }
       }
     }
@@ -421,136 +357,104 @@
     "split": "train",
     "cards": {
       "lexical_first_light_semantic": {
-        "delta": 0.0005,
+        "delta": -0.0059,
         "ci95": [
-          -0.0058,
-          0.0068
+          -0.0147,
+          0.0026
         ],
-        "base": 0.4024,
-        "after": 0.4029,
+        "base": 0.3885,
+        "after": 0.3826,
+        "theta0": 0.3885,
+        "vs_theta0": -0.0059,
         "claim_pp": 0.0,
-        "old_pp": 0.1,
-        "measured_from": {}
+        "old_pp": 0.0,
+        "measured_from": {},
+        "per_field": {
+          "fusion_mode": {
+            "delta": 0.0,
+            "ci95": [
+              0.0,
+              0.0
+            ]
+          },
+          "semantic_top_k": {
+            "delta": 0.0,
+            "ci95": [
+              0.0,
+              0.0
+            ]
+          }
+        }
       },
       "entity_swap_shallow": {
-        "delta": 0.0122,
+        "delta": 0.0091,
         "ci95": [
-          0.0074,
-          0.0169
+          0.0053,
+          0.0127
         ],
-        "base": 0.4029,
-        "after": 0.4151,
-        "claim_pp": 1.22,
-        "old_pp": 1.4,
+        "base": 0.3826,
+        "after": 0.3917,
+        "theta0": 0.3885,
+        "vs_theta0": 0.0032,
+        "claim_pp": 0.91,
+        "old_pp": 0.0,
         "measured_from": {
-          "fusion_mode": "weighted_sum",
-          "semantic_top_k": 100,
-          "weight_semantic": 0.3
+          "fusion_mode": "rrf",
+          "semantic_top_k": 100
         }
       },
       "query_rewrite_append_once": {
-        "delta": 0.0094,
+        "delta": 0.0009,
         "ci95": [
-          0.0026,
-          0.0163
+          -0.0021,
+          0.0037
         ],
-        "base": 0.4029,
-        "after": 0.4123,
-        "claim_pp": 0.94,
-        "old_pp": 1.3,
+        "base": 0.3826,
+        "after": 0.3835,
+        "theta0": 0.3885,
+        "vs_theta0": -0.005,
+        "claim_pp": 0.0,
+        "old_pp": 0.0,
         "measured_from": {
-          "fusion_mode": "weighted_sum",
-          "semantic_top_k": 100,
-          "weight_semantic": 0.3
-        }
-      },
-      "undo_auxiliary_overweight": {
-        "delta": 0.0239,
-        "ci95": [
-          0.0186,
-          0.0292
-        ],
-        "base": 0.3785,
-        "after": 0.4024,
-        "claim_pp": 2.39,
-        "old_pp": 2.4,
-        "measured_from": {
-          "fusion_mode": "weighted_sum",
-          "semantic_top_k": 100,
-          "weight_semantic": 1.0,
-          "structured_top_k": 10,
-          "weight_structured": 0.5
+          "fusion_mode": "rrf",
+          "semantic_top_k": 100
         }
       },
       "undo_structured_view": {
-        "delta": 0.0068,
+        "delta": 0.0003,
         "ci95": [
-          0.0042,
-          0.0096
+          -0.001,
+          0.0019
         ],
-        "base": 0.3961,
-        "after": 0.4029,
-        "claim_pp": 0.68,
-        "old_pp": 9.0,
+        "base": 0.3822,
+        "after": 0.3826,
+        "theta0": 0.3885,
+        "vs_theta0": -0.0059,
+        "claim_pp": 0.0,
+        "old_pp": 0.0,
         "measured_from": {
-          "fusion_mode": "weighted_sum",
+          "fusion_mode": "rrf",
           "semantic_top_k": 100,
-          "weight_semantic": 0.3,
           "structured_top_k": 10,
           "weight_structured": 0.5
         }
       },
-      "undo_query_decomposition": {
-        "delta": 0.0,
-        "ci95": [
-          0.0,
-          0.0
-        ],
-        "base": 0.4029,
-        "after": 0.4029,
-        "claim_pp": 0.0,
-        "old_pp": 8.8,
-        "measured_from": {
-          "fusion_mode": "weighted_sum",
-          "semantic_top_k": 100,
-          "weight_semantic": 0.3,
-          "enable_intent_planning": true
-        }
-      },
       "undo_chapter_filter": {
-        "delta": 0.058,
+        "delta": 0.045,
         "ci95": [
-          0.047,
-          0.0694
+          0.0354,
+          0.0552
         ],
-        "base": 0.3449,
-        "after": 0.4029,
-        "claim_pp": 5.8,
-        "old_pp": 8.3,
-        "measured_from": {
-          "fusion_mode": "weighted_sum",
-          "semantic_top_k": 100,
-          "weight_semantic": 0.3,
-          "enable_chapter_filter": true
-        }
-      },
-      "escape_plateau_shallower_swap": {
-        "delta": 0.0003,
-        "ci95": [
-          -0.0016,
-          0.0023
-        ],
-        "base": 0.4151,
-        "after": 0.4154,
+        "base": 0.3376,
+        "after": 0.3826,
+        "theta0": 0.3885,
+        "vs_theta0": -0.0059,
         "claim_pp": 0.0,
-        "old_pp": 0.3,
+        "old_pp": 0.0,
         "measured_from": {
           "fusion_mode": "rrf",
           "semantic_top_k": 100,
-          "weight_semantic": 0.3,
-          "enable_entity_swap": true,
-          "entity_swap_keyword_k": 30,
-          "entity_swap_semantic_k": 30
+          "enable_chapter_filter": true
         }
       }
     }

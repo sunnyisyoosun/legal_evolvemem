@@ -1,4 +1,4 @@
-"""Assign each query a legal class, a difficulty class, and a composite id.
+"""Assign each query a legal class and a composite id.
 
 Writes the labels back into corpus/{ds}_queries.json and records the id
 registry, so the retrieval wrapper can pass a category straight into
@@ -12,28 +12,12 @@ from __future__ import annotations
 import argparse, json, os, sys, time, collections
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import numpy as np
 import legal_retriever as L
 from legal_meta import LANG_OF
 from legal_taxonomy import legal_class, build_charge_to_article, composite
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 CASE_DIR = os.path.join(HERE, "corpus")
-POOL = {"LeCaRD": "/home/yoosun/legal/result/LeCaRD/candidate_pool.json"}
-
-
-def lexical_scores(index, query_text: str, pool_ids=None) -> list[float]:
-    tokens = index.tokenize(query_text)
-    if not tokens:
-        return []
-    if pool_ids:
-        scores, _ = index.bm25.get_scores_subpool(tokens, pool_ids)
-        return list(scores)
-    scores = index.bm25.get_scores(tokens)
-    top = np.argpartition(-scores, min(30, len(scores) - 1))[:30]
-    return [float(scores[i]) for i in top]
-
-
 # Every benchmark ships a train/val/test split; the files under result/ are
 # the one source that carries all three for all four. `output/` has a val for
 # LEGAR only, and it is a DIFFERENT re-split: its 476 val rows and result's
@@ -87,10 +71,10 @@ def run(dataset: str) -> dict:
     registry: dict[str, int] = {}
     for q in qs:
         q["legal_class"] = legal_class(q, dataset, c2a)
+        # Axis B is retired (METHODOLOGY 6): `composite` keeps its two-part
+        # key so rebuilt category ids stay identical to the ones already in
+        # corpus/*_queries.json and in every saved per_category_overrides.
         q["category"] = composite(q["legal_class"], "", registry)
-        q.pop("difficulty_class", None)
-        q.pop("profile_gap", None)
-        q.pop("profile_entropy", None)
 
     assign_fold(qs, dataset)
 

@@ -19,3 +19,6 @@ __pycache__/
 
 # jieba dictionary cache, rebuilt on first use (legal_retriever._set_jieba_cache)
 .cache/
+
+# 임시 백업본
+*.bak

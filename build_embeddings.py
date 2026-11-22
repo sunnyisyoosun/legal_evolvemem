@@ -9,7 +9,7 @@ Embeddings are written once to disk; the index loads them instead of re-encoding
 since the evolution loop re-reads the same corpus every round.
 """
 from __future__ import annotations
-import argparse, json, os, sys, time
+import argparse, datetime as _dt, json, os, sys, time
 
 import numpy as np
 
@@ -69,9 +69,38 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dataset", choices=sorted(LANG_OF))
     ap.add_argument("--all", action="store_true")
-    ap.add_argument("--device", default="cuda:1")
+    # "cuda", not "cuda:1". A hardcoded index picks a physical card, which on
+    # a shared machine is someone else's: GPU 0 and one other here carry
+    # another user's vLLM engines (84 and 53 GiB). "cuda" follows
+    # CUDA_VISIBLE_DEVICES, so the caller selects the device -- and selecting
+    # by UUID is safer still, because torch and nvidia-smi number the cards
+    # in different orders.
+    ap.add_argument("--device", default="cuda")
     ap.add_argument("--batch-size", type=int, default=64)
-    ap.add_argument("--max-len", type=int, default=512)
+    # bge-m3's own limit, not a conservative default.
+    #
+    # This was 512, and 512 was never a decision -- it was the value the
+    # three candidate encoders were PINNED at so the model comparison would
+    # be fair (PROGRESS, "임베딩 모델 비교 ... max_len 512 고정"). bge-m3 won
+    # that comparison and is the only one of the three that reads 8192; the
+    # others cap at 512 and 2048. So the capability the model was chosen for
+    # was then left switched off for every run after it.
+    #
+    # What 512 was costing, measured on 300-document samples:
+    #     COLIEE    avg 6,200 tokens, 99% truncated, 512 covers 17%
+    #     LeCaRD    avg 4,654 tokens, 99% truncated, 512 covers 31%
+    #     LEGAR     avg 1,062 tokens, 86% truncated, 512 covers 62%
+    #     LeCaRDv2  avg 1,234 tokens, 73% truncated, 512 covers 61%
+    #
+    # So BM25 read the whole judgment while the semantic view read a sixth of
+    # it, and the conclusion drawn from that comparison -- "semantic scores far
+    # below BM25 and only helps at weight 0.3" (section 8) -- is partly a
+    # measurement of this setting rather than of semantic retrieval.
+    #
+    # Cost at 8192 is 4.0x of 512 (LeCaRDv2 55k: 16 min -> 62 min), not the
+    # 16x the sequence length suggests, because most documents are far
+    # shorter than the cap and batches are bounded by real length.
+    ap.add_argument("--max-len", type=int, default=8192)
     ap.add_argument("--queries", action="store_true", help="also encode queries")
     ap.add_argument("--tag", default="m3", help="output file tag")
     ap.add_argument("--model", default=DEFAULT_MODEL)
@@ -84,12 +113,26 @@ def main():
         if a.queries:
             targets.append(("queries", lambda q: q["text"]))
         for tag, to_text in targets:
-            rows = json.load(open(f"{CASE_DIR}/{ds}_{tag}.json", encoding="utf-8"))
+            rows = json.load(open(f"{CASE_DIR}/{ds}_{tag}.json",
+                                  encoding="utf-8"))
             texts = [to_text(r) for r in rows]
             t0 = time.time()
             vecs = encode(model, texts, tag, a.batch_size, a.model)
             path = f"{EMB}/{ds}_{tag}_{a.tag}.npy"
             np.save(path, vecs.astype(np.float16))
+            # A fingerprint of the text that was encoded, beside the vectors.
+            # Vector COUNT is not enough: changing which sections of a
+            # judgment are indexed leaves the count identical, so BM25 would
+            # read the new text while the semantic view kept vectors built from
+            # the old -- a mismatch that passes every check and shows up only
+            # as a worse number. The same silent-degradation shape as
+            # METHODOLOGY 13.
+            json.dump({"n": len(texts),
+                       "chars": sum(len(t) for t in texts),
+                       "model": a.model, "tag": a.tag,
+                       "built": _dt.datetime.now().strftime("%Y-%m-%d %H:%M")},
+                      open(path[:-4] + ".meta.json", "w", encoding="utf-8"),
+                      indent=2)
             print(f"[{ds}/{tag}] {len(texts)} texts, {time.time()-t0:.0f}s, "
                   f"dim={vecs.shape[1]} -> {path} "
                   f"({os.path.getsize(path)/1e6:.0f} MB)", flush=True)

@@ -117,7 +117,7 @@ _FIELD_TYPE = {f.name: f.type for f in dataclasses.fields(RetrievalConfig)}
 #   - `max_context` should truncate, but the adapter may be overriding it with
 #     the caller's top_n
 #   - `entity_swap_semantic_k` is inert while `entity_swap_keyword_k` acts, so
-#     the party-strip view's dense half may contribute nothing after fusion
+#     the party-strip view's semantic half may contribute nothing after fusion
 #   - `query_rewrite_repeat` is inert although `enable_query_rewrite` acts
 # `enable_intent_planning` was not probed: probing it ON costs one LLM call
 # per query, which is the reason it is a candidate for removal in the first
@@ -137,9 +137,16 @@ ALLOW_INERT = os.environ.get("RECIPE_ALLOW_INERT", "0") != "0"
 # single-view restrictions), so the config fell through to a degenerate path
 # and measured -0.13. That is not a failed idea being rejected, it is an
 # invalid value being scored -- the validator has to catch it.
+#
+# `first_found` is implemented but NOT offered: it concatenates the views in
+# a fixed order without sorting, so the first view fills `max_context` and
+# the rest are inert (legal_retriever.search raises on it; METHODOLOGY 2
+# "fusion_mode is not a dimension"). A card proposing it would measure a
+# number that means "semantic_only", which is the same class of mistake as
+# the `mmr` value above.
 ENUMS = {
     "fusion_mode": ("keyword_only", "semantic_only", "structured_only",
-                    "first_found", "weighted_sum", "rrf"),
+                    "weighted_sum", "rrf"),
 }
 # Ranges for the numeric levers. Open-ended above, because "how deep" is the
 # loop's business; closed below, because a negative top-k or weight is not a
@@ -150,9 +157,18 @@ ENUMS = {
 # candidate measured against that read +0.3092, a number that would then be
 # shown to the diagnosis LLM as a measured fact. The base has to be a config
 # someone could plausibly be in, not the weakest one that satisfies the text.
+# Per-view candidate depth is 100 everywhere. Measured on train, all
+# four datasets (sweep.py --grid depth / --grid swap-depth):
+#   k=30  loses most of the semantic view's gain (LeCaRDv2 +0.0140
+#         -> +0.0042; LeCaRD falls back to theta_0)
+#   k=100 is the knee
+#   k=200 adds +0.0024 on LeCaRDv2 and ~0 elsewhere, under its floor
+# metadata's 10 was the engine default and party-strip's 30 came off
+# the old corpus. Depth is not an echo of top_n=30, which the metric
+# fixes (NDCG@30); these are how many candidates a VIEW contributes.
 REPRESENTATIVE = {
-    "semantic_top_k": 100, "keyword_top_k": 100, "structured_top_k": 10,
-    "entity_swap_keyword_k": 30, "weight_semantic": 0.3,
+    "semantic_top_k": 100, "keyword_top_k": 100, "structured_top_k": 100,
+    "entity_swap_keyword_k": 100, "weight_semantic": 0.3,
     "weight_keyword": 1.0, "weight_structured": 0.1,
     "mmr_diversity_weight": 0.3,
 }
@@ -189,6 +205,12 @@ COSTLY_FIELDS = {"enable_intent_planning", "enable_query_decomposition",
 ALLOW_COSTLY = os.environ.get("RECIPE_ALLOW_COSTLY", "0") != "0"
 
 MAX_FIELDS = 5          # a bundle, not a whole configuration
+# The loop's STEP CAP is a different number and must not be confused with
+# MAX_FIELDS: `legal_evolve.py --max-changes` defaults to 2. The proposal
+# prompt was interpolating MAX_FIELDS into the sentence "the loop may change
+# only N fields per round", telling the LLM 5 when the loop allows 2 -- and
+# the whole argument for a recipe is that it spends ONE of those slots.
+STEP_CAP = 2
 NAME_MAX = 64
 # Containment, not Jaccard. Two cards that agreed on 4 of their 5 fields
 # scored identically (0.3924 both) and still passed a Jaccard check, because
@@ -196,7 +218,11 @@ NAME_MAX = 64
 # proposal catches "the same card with one extra field".
 DUP_CONTAINMENT = 0.8
 DEV_FRACTION = 0.2
-ADMIT_THRESHOLD = 0.003  # the same bar elitism uses for a round
+# No module-level admission bar any more. 0.003 was the engine's LoCoMo-era
+# default and it sits BELOW the measured noise floor on three of our four
+# datasets (LeCaRD by 7.7x) -- the same defect that was fixed for the
+# evolution acceptance threshold. `admit` now takes the bar explicitly and
+# the caller passes `noise_floor(dataset)`.
 
 # A point estimate over 106 queries is not a decision. Measured on
 # LeCaRDv2 train-dev (scratchpad/noise_floor.py, 2026-11-02):
@@ -254,15 +280,54 @@ def bootstrap_ci(deltas: list[float], alpha: float = ALPHA,
     return (lo, hi)
 
 
+def measure_pair(index, rows, labels, base_cfg, change: dict,
+                 base_scores: list[float] | None = None) -> dict:
+    """Score `base_cfg` and `base_cfg+change` on the same queries, paired.
+
+    One function because this IS the measurement, three times over: a
+    recipe's lift, a rule's lift, and a noise-floor sample were three copies
+    of "score two configs on one fold, difference per query, bootstrap the
+    mean". The copies had already drifted -- one of them took its floor from
+    a constant and another from the file it was writing.
+
+    `base_scores` lets a caller reuse a base it already scored; the pairing
+    is per query, so the two lists must come from the same `rows`.
+    """
+    import statistics as _st
+    from dataclasses import replace as _replace
+    from evaluate import per_query as _per_query
+    bv = base_scores if base_scores is not None else _per_query(
+        index, rows, labels, base_cfg)
+    av = _per_query(index, rows, labels, _replace(base_cfg, **change))
+    d = [y - x for x, y in zip(bv, av)]
+    lo, hi = bootstrap_ci(d, alpha=ALPHA)
+    return {"delta": _st.fmean(d) if d else 0.0, "ci95": [lo, hi],
+            "halfwidth": (hi - lo) / 2.0,
+            "base": _st.fmean(bv) if bv else 0.0,
+            "after": _st.fmean(av) if av else 0.0,
+            "deltas": d, "base_scores": bv}
+
+
 def admit(deltas: list[float], after: float, theta0: float,
-          n_tested: int = 1) -> tuple[bool, str]:
+          n_tested: int = 1, *, threshold: float) -> tuple[bool, str]:
     """Three gates. Any one of them failing is a rejection.
 
     1. the CI lower bound clears zero, at a level corrected for how many
        candidates this session has tested against the same fold
-    2. the mean clears the same bar a round has to clear
+    2. the mean clears `threshold`
     3. the state it leads to beats theta_0 -- a card can pass 1 and 2 by
        improving on a branch nobody would stand on
+
+    `threshold` is keyword-only and has NO DEFAULT on purpose. It used to be
+    the module constant 0.003, inherited from LoCoMo, which is under the
+    measured noise floor on three of four datasets. Callers pass
+    `noise_floor(dataset)`.
+
+    One caveat the caller should print: that floor is measured on FULL
+    train, while these deltas come from train-dev (20% of it). A smaller
+    fold is noisier, so the train floor is a LOWER BOUND on the right bar
+    here. Gate 1 is what actually binds on dev precision -- its CI is
+    bootstrapped on the dev deltas themselves.
     """
     import statistics as _st
     alpha = ALPHA / max(1, n_tested)
@@ -272,8 +337,8 @@ def admit(deltas: list[float], after: float, theta0: float,
               f"[{lo:+.4f}, {hi:+.4f}] (k={n_tested})")
     if lo <= 0:
         return False, f"CI includes 0; {detail}"
-    if mean <= ADMIT_THRESHOLD:
-        return False, f"below +{ADMIT_THRESHOLD}; {detail}"
+    if mean <= threshold:
+        return False, f"below +{threshold:.4f}; {detail}"
     if after <= theta0:
         return False, (f"beats its trigger base but not theta_0 "
                        f"({after:.4f} <= {theta0:.4f}); {detail}")
@@ -532,7 +597,7 @@ def validate(cand: dict, existing: list[dict],
 
     # Exact-match dedup is not enough: the first five proposals produced
     # three cards that were the same idea with one number changed
-    # ("reduce dense reliance" at top_k 50, 30, 30). A pool of near-copies
+    # ("reduce semantic reliance" at top_k 50, 30, 30). A pool of near-copies
     # gives the LLM more options without giving it more moves.
     for e in existing:
         other = e.get("proposal") or {}
@@ -569,17 +634,27 @@ def save_store(store: dict) -> None:
         json.dump(store, f, indent=2, ensure_ascii=False)
 
 
-def as_recipes(store: dict | None = None) -> list[Recipe]:
+def as_recipes(store: dict | None = None,
+               dataset: str | None = None) -> list[Recipe]:
     """The admitted candidates, as engine Recipe objects.
 
     `expected_lift_pp` is the measured delta, never a proposed one, and the
     description carries where it was measured so the diagnosis LLM can
     discount a thin measurement instead of reading a bare number as fact.
+
+    `dataset` filters to the cards admitted ON that dataset, and callers in
+    an evolution run must pass it. Without it every dataset received every
+    card: three of the four admitted cards were measured on LEGAR alone and
+    were being handed to the LeCaRD loops as though they carried evidence
+    there (JOURNAL 34). The dataset was never missing from the record --
+    `measured_block` has always written it -- it was simply never read.
     """
     store = store or load_store()
     out = []
     for e in store.get("admitted", []):
         m = e.get("measured", {})
+        if dataset is not None and m.get("dataset") != dataset:
+            continue
         prov = (f" [measured {m.get('delta', 0) * 100:+.1f} pp on "
                 f"{m.get('dataset')} train-dev, n={m.get('n')}, {m.get('date')}]")
         out.append(Recipe(
@@ -594,6 +669,98 @@ def as_recipes(store: dict | None = None) -> list[Recipe]:
 
 
 LIFTS = os.path.join(HERE, "recipe_lifts.json")
+FLOORS = os.path.join(HERE, "noise_floor.json")
+RULE_LIFTS = os.path.join(HERE, "rule_lifts.json")
+
+
+def noise_floor(dataset: str) -> tuple[float, str]:
+    """Smallest delta on `dataset` train that is distinguishable from noise.
+
+    Why this replaces the engine's `acceptance_threshold = 0.003`
+    ------------------------------------------------------------
+    0.003 is an absolute delta inherited from the LoCoMo-era default. It was
+    never checked against the precision of our folds, and it is BELOW the
+    noise floor on three of our four datasets:
+
+        dataset          n      noise floor   0.003 (=0.30 pp) is
+        LeCaRD           79        2.40 pp     7.7x TOO SMALL
+        LeCaRDv2        576        0.50 pp     1.7x too small
+        COLIEE         1148        0.52 pp     1.7x too small
+        LEGAR_stricter 4228        0.17 pp     1.7x too large
+
+    A threshold under the noise floor accepts rounds that cannot be
+    distinguished from doing nothing, and elitism then carries that state
+    forward as the incumbent best.
+
+    What "noise" means here
+    -----------------------
+    Retrieval is deterministic: the same (query, config) always scores the
+    same, so there is no run-to-run variance to average out. The uncertainty
+    is that this train fold is ONE SAMPLE OF QUERIES -- a delta measured on
+    it may not hold on others. The paired bootstrap over queries is what
+    measures that, and `measure_recipes.py` already ran it for every card:
+    `recipe_lifts.json` stores a CI95 per card per dataset. The half-width of
+    those intervals is the quantity an acceptance threshold has to clear.
+
+    The estimator is the MEDIAN half-width over that dataset's comparisons,
+    with zero-width intervals dropped. A zero width means every per-query
+    difference was exactly 0 -- an inert lever, which measures the noise of
+    nothing.
+
+    WHERE the comparisons come from changed on 2026-11-22. They used to be
+    the recipe cards `measure_recipes.py` happened to have measured, which
+    made the threshold a property of the POOL: of the eight cards behind the
+    live numbers, three no longer existed and three more were removed that
+    day, and cards are a biased sample anyway (a card is a move someone
+    thought would help). They are now fixed CONFIG PAIRS -- `noise_floor.py`
+    -- which depend on no pool and get better with more pairs instead of
+    worse as the pool shrinks.
+
+    The card-derived file is still read as a FALLBACK so a checkout that has
+    not run the estimator yet keeps its old behaviour, and the provenance
+    string says which source answered. Rebuild with:
+
+        python3 noise_floor.py --datasets <ds>
+
+    Returns (threshold, provenance). Raises nothing: a dataset with no row
+    gets (0.0, reason) and the caller decides what to do about it.
+    """
+    try:
+        with open(FLOORS, encoding="utf-8") as f:
+            floors = json.load(f)
+        row = floors.get(dataset) or {}
+        if row.get("floor"):
+            return (row["floor"],
+                    f"median CI95 half-width over {row['usable_pairs']} "
+                    f"config pairs on {dataset} {row['split']} "
+                    f"(n={row['n']}, noise_floor.py)")
+    except (OSError, ValueError):
+        pass
+    try:
+        with open(LIFTS, encoding="utf-8") as f:
+            table = json.load(f)
+    except (OSError, ValueError):
+        return (0.0, "recipe_lifts.json unreadable")
+    row = table.get(dataset)
+    if not row:
+        return (0.0, f"no recipe_lifts.json row for {dataset}")
+    widths = []
+    for m in (row.get("cards") or {}).values():
+        ci = m.get("ci95")
+        if not ci:
+            continue
+        hw = (ci[1] - ci[0]) / 2.0
+        if hw > 1e-9:
+            widths.append(hw)
+    if not widths:
+        return (0.0, f"{dataset}: no non-degenerate CI in recipe_lifts.json")
+    widths.sort()
+    mid = len(widths) // 2
+    med = widths[mid] if len(widths) % 2 else (widths[mid - 1] + widths[mid]) / 2
+    return (round(med, 5),
+            f"FALLBACK card-derived floor: median CI95 half-width over "
+            f"{len(widths)} recipe cards on {dataset} {row['split']} "
+            f"(n={row['n']}) -- run noise_floor.py to replace it")
 
 
 def apply_measured_lifts(dataset: str) -> tuple[int, int]:
@@ -602,12 +769,26 @@ def apply_measured_lifts(dataset: str) -> tuple[int, int]:
     The eight values in RECIPES_LEGAL were typed in from the sweep in
     METHODOLOGY 8, which ran on TEST. They are not inert: the diagnosis
     prompt renders them as "(expected +N pp)", so the leak has been steering
-    every round. measure_recipes.py re-measures each card on TRAIN, from a
-    state the card's own trigger accepts, with a paired bootstrap CI.
+    every round. measure_recipes.py re-measures on TRAIN with a paired
+    bootstrap CI.
 
-    A card whose CI includes zero gets 0.0 and says so. That is not a claim
-    that the card is useless -- it is the refusal to show a number we cannot
-    support, which is the same rule the learned recipes follow (section 21).
+    Source changed on 2026-11-22: `rule_lifts.json`, not `recipe_lifts.json`.
+    After the type split only a Rule has a lift -- a Bundle carries no values
+    and so has no delta to measure -- and measure_recipes.py no longer
+    re-measures the hand-written cards. The frozen card table is NOT read
+    here on purpose: a number nobody re-measures is exactly the leak this
+    function exists to close, and `set_show_unmeasured_lift(False)` means an
+    unmeasured card simply shows no figure.
+
+    A card gets 0.0 unless three things hold, and the note says which one
+    failed: the paired CI clears zero, the mean clears the same 0.003 floor
+    elitism uses, and the END STATE beats theta_0. The third was missing and
+    mattered: a card is measured from the state its own trigger accepts
+    (section 22), so the lift is CONDITIONAL, not additive -- on LeCaRD train,
+    undo_chapter_filter climbed 0.4677 -> 0.6241 and claimed +15.65 pp while
+    theta_0 is 0.6637. Climbing out of a hole the trigger state put you in is
+    not a gain. That is not a claim the card is useless -- it is the refusal
+    to show a number we cannot support (section 21).
 
     The lift is per DATASET, because one number cannot be right for four
     corpora in three languages: the same lever flipped sign between query
@@ -617,7 +798,7 @@ def apply_measured_lifts(dataset: str) -> tuple[int, int]:
     """
     from evolvemem import evolution_cookbook as CB
     try:
-        with open(LIFTS, encoding="utf-8") as f:
+        with open(RULE_LIFTS, encoding="utf-8") as f:
             table = json.load(f)
     except (OSError, ValueError):
         return (0, 0)
@@ -626,7 +807,7 @@ def apply_measured_lifts(dataset: str) -> tuple[int, int]:
         return (0, 0)
     n_set = n_zero = 0
     for r in CB.RECIPE_POOLS.get("legal_retrieval", []):
-        m = row.get("cards", {}).get(r.name)
+        m = row.get("rules", {}).get(r.name)
         if not m:
             continue
         r.expected_lift_pp = m["claim_pp"]
@@ -640,24 +821,55 @@ def apply_measured_lifts(dataset: str) -> tuple[int, int]:
         prov = (f" [measured {m['delta'] * 100:+.1f} pp on {dataset} "
                 f"{row['split']}, n={row['n']}, CI95 "
                 f"[{m['ci95'][0] * 100:+.1f}, {m['ci95'][1] * 100:+.1f}] pp"
-                + ("; interval includes 0, so no gain is claimed" if
+                + (f"; no gain claimed -- {m['zero_reason']}" if
+                   m["claim_pp"] == 0.0 and m.get("zero_reason") else
+                   "; interval includes 0, so no gain is claimed" if
                    m["claim_pp"] == 0.0 else "")
-                + ". Any pp figures in the text above predate this and came "
-                  "from a sweep on the TEST fold; this bracketed figure is "
-                  "the only one measured on the fold being optimised.]")
+                + (f". End state {m['vs_theta0']:+.4f} vs theta_0"
+                   if "vs_theta0" in m else "")
+                + ". Any pp figures in the text above predate this. They "
+                  "came from a sweep on the TEST fold AND on the old corpus "
+                  "(Fact only, embeddings truncated at 512 tokens), whose "
+                  "view ranking has since reversed -- the semantic view is now "
+                  "the strongest single addition, and the swap view measures "
+                  "nothing. Trust only this bracketed figure.]")
         # Strip a provenance note from an earlier call so repeated installs
         # do not stack them.
         r.description = re.sub(r"\s*\[measured [^\]]*\]\s*$", "",
                                r.description) + prov
+        # Marks the number as measured FOR THIS DATASET. Without it the
+        # renderer prints no figure at all, which is the point: a hand-typed
+        # value rendered as "(expected +N pp)" reads to the LLM exactly like
+        # a measured one, and the nine hand-typed values were ordered the
+        # inverse of what matters (evolution_cookbook.format_recipes_for_
+        # prompt has the audit).
+        # Both figures. The conditional delta alone overstated the card:
+        # entity_swap_shallow reads +4.57 pp from its trigger base on LeCaRD
+        # train while the state it lands in is only +0.61 pp above theta_0,
+        # and the header is what a temperature-0 model selects on.
+        import diagnosis_prompts as _DP
+        if m["claim_pp"] == 0.0:
+            r.lift_source = _DP.t("recipe.src_zero").format(
+                ds=dataset, split=row["split"], n=row["n"],
+                why=_DP.zero_reason(m.get("zero_reason")) or
+                    _DP.t("recipe.zero_ci"))
+        else:
+            r.lift_source = _DP.t("recipe.src_gain").format(
+                pp=m["claim_pp"], end=m.get("vs_theta0", 0.0) * 100,
+                ds=dataset, split=row["split"], n=row["n"])
         n_set += 1
         n_zero += m["claim_pp"] == 0.0
     return (n_set, n_zero)
 
 
-def install(extend: bool = True) -> int:
-    """Put the learned recipes into the pool. Returns how many were added."""
+def install(extend: bool = True, dataset: str | None = None) -> int:
+    """Put the learned recipes into the pool. Returns how many were added.
+
+    Pass `dataset` from an evolution run so the pool holds only the cards
+    measured on that dataset. See `as_recipes`.
+    """
     from evolvemem import evolution_cookbook as CB
-    learned = as_recipes()
+    learned = as_recipes(dataset=dataset)
     base = CB.RECIPE_POOLS.get("legal_retrieval", []) if extend else []
     CB.RECIPE_POOLS["legal_retrieval"] = list(base) + learned
     return len(learned)
@@ -668,12 +880,18 @@ PROMPT = """You extend a library of retrieval "recipes" for legal case retrieval
 
 A recipe is a bundle of configuration fields that is applied together when a
 symptom is observed. It exists because the evolution loop may change only
-{cap} fields per round, and a recipe counts as ONE of those slots however many
-fields it carries -- so a recipe is worth proposing when several fields must
-move TOGETHER to help, and worthless when one field would do.
+{step_cap} field(s) per round, and a recipe counts as ONE of those slots
+however many fields it carries -- so a recipe is worth proposing when several
+fields must move TOGETHER to help, and worthless when one field would do.
 
-Retrieval works by scoring a query against four views and fusing them:
-  BM25 lexical | dense (bge-m3) | metadata (statute/charge overlap) | party-strip
+Retrieval works by scoring a query against four views and fusing them. Every
+view's candidate depth is 100: that is measured, and 30 loses most of the
+semantic view's gain. If you switch a view on, set its depth too.
+  BM25 lexical (query as written)
+  semantic (bge-m3 embedding, the query as written -- never a stripped or
+            rewritten one, because deletion is a lexical act)
+  metadata (statute/charge overlap)
+  party-strip (BM25 again on the query with party, org and place names cut)
 
 Current configuration being evolved:
 {config}
@@ -721,21 +939,51 @@ Rules:
 {reasoning_rule}
 """
 
-KNOWLEDGE = """- BM25 alone scores 0.4040 on LeCaRDv2 train; the dense view alone 0.2814.
-  The dense view helps only at weight ~0.3 and degrades monotonically above it.
+# Measured facts handed to the proposer. EVERY line here must be a train
+# measurement that still holds; a stale line is indistinguishable from a live
+# one to the reader, and this block is the proposer's whole picture of the
+# domain. Four lines were removed on 2026-11-13 because they had been
+# overturned -- they are listed in the prompt itself as corrections, because
+# silently dropping a claim leaves the LLM free to rediscover it.
+KNOWLEDGE = """- BM25 alone is theta_0 on all four datasets. Turning the semantic view on
+  with score fusion is the ONLY move positive on all four (train, +0.0140
+  LeCaRDv2 / +0.0134 LeCaRD / +0.0041 COLIEE / +0.0062 LEGAR).
+- The semantic view's best weight spans 0.1-2.0 ACROSS datasets -- a 20x
+  range. There is no single right value; it is a property of the corpus.
+- Every view's candidate depth is 100. At 30 most of the semantic view's gain
+  is lost (LeCaRDv2 +0.0140 -> +0.0042). 200 adds nothing outside noise.
 - The metadata view never helped in five different formulations: sharing a
-  statute means the same offence, not a similar case.
-- RRF beats weighted-sum once a 4th view contributes; with one view it lost.
-- Party-strip at k=30 beat k=100: shallower intervention won.
-- Widening party-strip to also delete organisations and places lost on train
-  in all three languages.
-- Chapter filtering lost 8.3 pp: only 61% of relevant cases share the query's
-  chapter.
+  statute means the same offence, not a similar case. (Measured at depth 10;
+  being re-measured at 100.)
 - Per-query LLM steps (intent planning, decomposition) lost 8.8 pp AND break
   the property that retrieval makes no LLM call per query.
 - Almost every gain in this domain came from intervening LESS, not more.
-- The same lever can flip sign between query classes: dense at weight 0.3 was
-  +0.0119 on one class and -0.3421 on another."""
+- The same lever can flip sign between query classes: the semantic view at
+  weight 0.3 was +0.0119 on one class and -0.3421 on another.
+- Gold documents share the query's party names (+16 pp vs random) and its
+  place names (+51 pp). The metric therefore rewards a signal the task
+  definition says is not relevance. Deletion is kept anyway, as a deliberate
+  choice of the task definition over the metric.
+
+CORRECTIONS -- claims that were in this block and are now known false. Do not
+re-derive them:
+- "The semantic view helps only at weight ~0.3 and degrades above it." FALSE:
+  that was an artefact of embeddings truncated at 512 tokens. At 8192 the
+  optimum moved and LEGAR's is 2.0.
+- "BM25 alone 0.4040 / semantic alone 0.2814 on LeCaRDv2 train." Stale corpus
+  (Fact section only). theta_0 is 0.3885 on the current corpus.
+- "RRF beats weighted-sum once a 4th view contributes." Fusion mode is
+  substantially irrelevant; what matters is whether the semantic view is on.
+- "Party-strip at k=30 beat k=100: shallower intervention won." FALSE: every
+  such verdict was taken with party-strip at 30 while BM25 ran at 100, which
+  compared depths rather than views. At a common 100, party-strip is at or
+  above the off state on two datasets.
+- "Chapter filtering lost 8.3 pp." The direction is right; read the size
+  with care. `undo_chapter_filter` measures +4.5 to +13.6 pp, but only
+  because the card is measured from a state with the filter ON, which is
+  not where theta_0 stands -- the default is already off, and the card is
+  rejected on all four datasets for ending below theta_0. A card's lift is
+  CONDITIONAL on its trigger state, never additive to theta_0."""
 
 
 COT_BLOCK = """Work through these six steps in prose FIRST, then give the JSON. The steps
@@ -780,7 +1028,7 @@ def crowded_fields(store: dict, k: int = 2, min_uses: int = 3) -> list[str]:
     sampling over the action space rather than a judgement about what is
     good: the choice of which fields to withhold is computed from the store's
     own counts, not from my opinion of the levers. At most `k` are withheld
-    and only above `min_uses`, because the dense view needs score fusion and
+    and only above `min_uses`, because the semantic view needs score fusion and
     banning `fusion_mode` early would make most useful bundles unreachable.
     """
     from collections import Counter
@@ -790,7 +1038,8 @@ def crowded_fields(store: dict, k: int = 2, min_uses: int = 3) -> list[str]:
 
 
 def build_prompt(config: dict, store: dict, cap: int = MAX_FIELDS,
-                 cot: bool = True, banned: list[str] | None = None) -> str:
+                 cot: bool = True, banned: list[str] | None = None,
+                 step_cap: int = STEP_CAP) -> str:
     def brief(entries, keys=("name", "proposal")):
         """Existing recipes, with inert fields marked.
 
@@ -834,7 +1083,7 @@ def build_prompt(config: dict, store: dict, cap: int = MAX_FIELDS,
         answer_lead=("Then, after the line `RECIPE:`, give the recipe as JSON "
                      "and nothing else:" if cot else
                      "Give the recipe as JSON and nothing else:"),
-        cap=cap,
+        cap=cap, step_cap=step_cap,
         coverage=f"  moved already: {touched}\n  never moved:   {untouched}",
         limits="\n".join(
             [f"  {k}: one of {', '.join(v)}" for k, v in ENUMS.items()]
