@@ -1,22 +1,23 @@
 {
-  "best_round": 2,
-  "best_f1": 0.4028360065109609,
+  "best_round": 1,
+  "best_f1": 0.399944819224058,
   "final_config": {
-    "semantic_top_k": 0,
+    "semantic_top_k": 40,
     "keyword_top_k": 100,
     "structured_top_k": 0,
     "max_context": 100,
     "enable_entity_swap": true,
     "entity_swap_semantic_k": 15,
-    "entity_swap_keyword_k": 10,
-    "fusion_mode": "weighted_sum",
-    "weight_semantic": 1.0,
+    "entity_swap_keyword_k": 100,
+    "fusion_mode": "rrf",
+    "weight_semantic": 0.5,
     "weight_keyword": 1.0,
     "weight_structured": 0.5,
     "enable_query_rewrite": false,
     "query_rewrite_repeat": 1,
     "enable_chapter_filter": false,
     "time_decay_half_life_days": null,
+    "recency_weight": 0.0,
     "reference_date": null,
     "reflection_rounds": 0,
     "answer_style": "concise",
@@ -51,84 +52,76 @@
   "trajectory": [
     {
       "round": 0,
-      "f1": 0.4023912808431058,
+      "f1": 0.38847430549678763,
       "zero": 14,
       "mems": 55192,
       "improvements": [
-        "per_category_overrides: {} -> {'5': {'enable_entity_swap': True, 'entity_swap_keyword_k': 15}, '6': {'mmr_dive",
-        "semantic_top_k: 0 -> 100",
-        "weight_semantic: 1.0 -> 0.3",
-        "fusion_mode: keyword_only -> weighted_sum"
+        "weight_semantic: 1.0 -> 0.5",
+        "enable_entity_swap: False -> True",
+        "fusion_mode: keyword_only -> rrf",
+        "semantic_top_k: 0 -> 40"
       ]
     },
     {
       "round": 1,
-      "f1": 0.3894631179433349,
-      "zero": 16,
+      "f1": 0.399944819224058,
+      "zero": 12,
       "mems": 55192,
       "improvements": [
-        "ELITISM-REJECT: delta=-0.0129 \u2264 threshold, revert to round 0 (f1=0.4024)",
-        "enable_entity_swap: False -> True",
-        "fusion_mode: keyword_only -> weighted_sum"
+        "ELITISM-ACCEPT: delta=+0.0115, new best",
+        "entity_swap_keyword_k: 100 -> 20"
       ]
     },
     {
       "round": 2,
-      "f1": 0.4028360065109609,
-      "zero": 14,
+      "f1": 0.399163106378573,
+      "zero": 13,
       "mems": 55192,
       "improvements": [
-        "ELITISM-SOFT-ACCEPT: delta=+0.0004 (below +0.003 threshold, kept as new baseline)",
-        "entity_swap_semantic_k: 15 -> 30",
-        "per_category_overrides: {} -> {'5': {'enable_entity_swap': True, 'keyword_top_k': 20}}",
-        "entity_swap_keyword_k: 10 -> 30",
-        "fusion_mode: weighted_sum -> rrf"
+        "ELITISM-REJECT: delta=-0.0008 \u2264 threshold, revert to round 1 (f1=0.3999)",
+        "fusion_mode: rrf -> weighted_sum",
+        "structured_top_k: 0 -> 15"
       ]
     },
     {
       "round": 3,
-      "f1": 0.40067276572918836,
-      "zero": 11,
+      "f1": 0.3867356088746685,
+      "zero": 13,
       "mems": 55192,
       "improvements": [
-        "ELITISM-REJECT: delta=-0.0022 \u2264 threshold, revert to round 2 (f1=0.4028)",
-        "weight_semantic: 1.0 -> 1.5",
-        "fusion_mode: weighted_sum -> rrf"
+        "ELITISM-REJECT: delta=-0.0132 \u2264 threshold, revert to round 1 (f1=0.3999)"
       ]
     },
     {
       "round": 4,
-      "f1": 0.4028194319707834,
-      "zero": 14,
+      "f1": 0.399944819224058,
+      "zero": 12,
       "mems": 55192,
       "improvements": [
-        "ELITISM-REJECT: delta=-0.0000 \u2264 threshold, revert to round 2 (f1=0.4028)",
-        "semantic_top_k: 0 -> 15",
-        "fusion_mode: weighted_sum -> rrf"
+        "ELITISM-REJECT: delta=+0.0000 \u2264 threshold, revert to round 1 (f1=0.3999)",
+        "structured_top_k: 0 -> 15"
       ]
     },
     {
       "round": 5,
-      "f1": 0.39355345847901163,
-      "zero": 10,
+      "f1": 0.3990127660768395,
+      "zero": 12,
       "mems": 55192,
       "improvements": [
-        "ELITISM-REJECT: delta=-0.0093 \u2264 threshold, revert to round 2 (f1=0.4028)",
-        "weight_semantic: 1.0 -> 1.5",
-        "fusion_mode: weighted_sum -> rrf"
+        "ELITISM-REJECT: delta=-0.0009 \u2264 threshold, revert to round 1 (f1=0.3999)",
+        "structured_top_k: 0 -> 15"
       ]
     },
     {
       "round": 6,
-      "f1": 0.4028194319707834,
-      "zero": 14,
+      "f1": 0.3990127660768395,
+      "zero": 12,
       "mems": 55192,
       "improvements": [
-        "ELITISM-REJECT: delta=-0.0000 \u2264 threshold, revert to round 2 (f1=0.4028)",
-        "intent_merge_top_k: 15 -> 20",
-        "enable_intent_planning: False -> True"
+        "ELITISM-REJECT: delta=-0.0009 \u2264 threshold, revert to round 1 (f1=0.3999)",
+        "CONVERGED: 5 consecutive rejections"
       ]
     }
   ],
-  "total_duration": 385.652042388916
+  "total_duration": 545.3857426643372
 }

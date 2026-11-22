@@ -33,17 +33,15 @@ import legal_retriever as L                      # noqa: E402
 import recipe_learning as RL                     # noqa: E402
 import registry as REG                           # noqa: E402
 import query_rewrite as QR                       # noqa: E402
-from evaluate import load_fold, per_query, weak_config   # noqa: E402
-from legal_meta import LANG_OF                   # noqa: E402
+from evaluate import (CASE_DIR, EVAL_K, PRIMARY, QRELS, in_split, load_fold,  # noqa: E402
+                      load_pool, per_query, weak_config)
+from legal_meta import LANG_OF, LANG_OF                   # noqa: E402
 import argparse, collections, json, os, statistics as st, sys
 import legal_retriever as L
 from evolvemem.multi_retriever import RetrievalConfig
-from evaluate import CASE_DIR, QRELS, load_pool, EVAL_K, in_split
 import argparse, json, os, re, statistics as st, sys
 import legal_meta as LM
 import recipe_learning as RL
-from evaluate import EVAL_K, PRIMARY, load_fold, weak_config
-from legal_meta import LANG_OF
 
 
 # ======================================================================

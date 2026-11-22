@@ -338,5 +338,175 @@
     "halfwidth": 0.00387
    }
   }
+ },
+ "COLIEE": {
+  "n": 1148,
+  "split": "train",
+  "floor": 0.00286,
+  "usable_pairs": 11,
+  "pairs": {
+   "sem_on": {
+    "base": "t0",
+    "change": {
+     "semantic_top_k": 100,
+     "fusion_mode": "rrf",
+     "weight_semantic": 0.3
+    },
+    "delta": 0.00412,
+    "ci95": [
+     -0.00139,
+     0.00986
+    ],
+    "halfwidth": 0.00562
+   },
+   "struct_on": {
+    "base": "t0",
+    "change": {
+     "structured_top_k": 100,
+     "fusion_mode": "rrf",
+     "weight_structured": 0.1
+    },
+    "delta": 0.00187,
+    "ci95": [
+     -0.00064,
+     0.00449
+    ],
+    "halfwidth": 0.00257
+   },
+   "swap_on": {
+    "base": "t0",
+    "change": {
+     "enable_entity_swap": true,
+     "entity_swap_keyword_k": 100,
+     "fusion_mode": "rrf"
+    },
+    "delta": -0.00184,
+    "ci95": [
+     -0.0032,
+     -0.00052
+    ],
+    "halfwidth": 0.00134
+   },
+   "kw_depth_100_50": {
+    "base": "t0",
+    "change": {
+     "keyword_top_k": 50
+    },
+    "delta": 0.0,
+    "ci95": [
+     0.0,
+     0.0
+    ],
+    "halfwidth": 0.0
+   },
+   "chapter_filter": {
+    "base": "t0",
+    "change": {
+     "enable_chapter_filter": true
+    },
+    "delta": -0.06299,
+    "ci95": [
+     -0.07468,
+     -0.05191
+    ],
+    "halfwidth": 0.01138
+   },
+   "fusion_rrf_ws": {
+    "base": "fused",
+    "change": {
+     "fusion_mode": "weighted_sum"
+    },
+    "delta": -0.00278,
+    "ci95": [
+     -0.00793,
+     0.00251
+    ],
+    "halfwidth": 0.00522
+   },
+   "w_sem_.3_.6": {
+    "base": "fused",
+    "change": {
+     "weight_semantic": 0.6
+    },
+    "delta": -0.0019,
+    "ci95": [
+     -0.00494,
+     0.00138
+    ],
+    "halfwidth": 0.00316
+   },
+   "w_kw_1.0_0.8": {
+    "base": "fused",
+    "change": {
+     "weight_keyword": 0.8
+    },
+    "delta": -8e-05,
+    "ci95": [
+     -0.00177,
+     0.00162
+    ],
+    "halfwidth": 0.00169
+   },
+   "w_struct_.1_.5": {
+    "base": "fused",
+    "change": {
+     "weight_structured": 0.5
+    },
+    "delta": 0.00037,
+    "ci95": [
+     -0.00364,
+     0.00429
+    ],
+    "halfwidth": 0.00396
+   },
+   "swap_depth_100_30": {
+    "base": "fused",
+    "change": {
+     "entity_swap_keyword_k": 30
+    },
+    "delta": -0.00128,
+    "ci95": [
+     -0.00249,
+     -5e-05
+    ],
+    "halfwidth": 0.00122
+   },
+   "sem_depth_100_30": {
+    "base": "fused",
+    "change": {
+     "semantic_top_k": 30
+    },
+    "delta": -0.0015,
+    "ci95": [
+     -0.00431,
+     0.00141
+    ],
+    "halfwidth": 0.00286
+   },
+   "mmr_on": {
+    "base": "fused",
+    "change": {
+     "mmr_diversity_weight": 0.3
+    },
+    "delta": -0.00038,
+    "ci95": [
+     -0.00252,
+     0.00163
+    ],
+    "halfwidth": 0.00207
+   },
+   "rewrite_on": {
+    "base": "fused",
+    "change": {
+     "enable_query_rewrite": true
+    },
+    "delta": 0.0,
+    "ci95": [
+     0.0,
+     0.0
+    ],
+    "halfwidth": 0.0
+   }
+  }
  }
 }

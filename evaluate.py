@@ -97,6 +97,24 @@ def per_query(index, rows, labels, config: RetrievalConfig,
     return out
 
 
+def load_index(dataset: str, *, emb_tag: str = "m3", suffix: str = ""):
+    """(index, labels) with no split involved.
+
+    For callers that re-score a saved run file per fold rather than
+    searching: they need the index and the qrels, never a filtered row list.
+    `load_fold(ds, None)` would be the obvious spelling and it is refused on
+    purpose -- `in_split(None)` is the test fold (JOURNAL 46) -- so the
+    no-split case gets its own name instead of a sentinel that reads like
+    "every fold".
+    """
+    cases = json.load(open(f"{CASE_DIR}/{dataset}_cases{suffix}.json",
+                           encoding="utf-8"))
+    qs = json.load(open(f"{CASE_DIR}/{dataset}_queries{suffix}.json",
+                        encoding="utf-8"))
+    labels = L.MBR.load_qrels(QRELS.format(ds=dataset))
+    return L.build_index(dataset, cases, qs, emb_tag=emb_tag), labels
+
+
 def load_fold(dataset: str, split: str | None = None, *, emb_tag: str = "m3",
               suffix: str = ""):
     """(index, rows, labels) for one dataset+split. One copy, not six.

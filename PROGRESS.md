@@ -12,33 +12,36 @@
 **지금 무엇이 돌고 있고 다음에 무엇을 하는지**만 적는다. 시스템 구조는
 [METHODOLOGY.md](METHODOLOGY.md), 날짜순 발견과 실수는 [JOURNAL.md](JOURNAL.md)에 있다.
 
-### 지금 위치 (2026-11-22)
+### 지금 위치 (2026-11-22, 저녁)
 
-**돌고 있는 것** — `measure.py floor`가 LeCaRDv2 → COLIEE → LEGAR_stricter의 수용 임계값을
-재고 있다(LeCaRD는 완료: **0.0103**). 데이터셋마다 즉시 기록하므로 중간에 끊겨도 끝난
-것은 남는다.
+**루프를 돌렸다 — 10-31 이후 처음이고, 새 구조에서는 처음이다.** 그리고 바로
+**σ_run을 쟀다.** 결과가 보고 단위를 바꾼다.
 
-**막혀 있는 것** — 그 셋의 floor가 나오기 전까지 `verify.py`가 **진화 실행을 막는다.**
-floor가 카드 기반 폴백이면 게이트가 실패한다(아래 "floor 출처 교체").
+| LeCaRDv2 train 576, 7라운드, `--recipes bundles`, 임계값 0.0023 | |
+|---|---|
+| θ₀ | 0.3885 |
+| 5회 실행의 최종 Δ | +0.0000 / +0.0046 / +0.0107 / +0.0114 / +0.0184 |
+| 평균 | **+0.0090** |
+| **σ_run** | **0.0070** |
 
-**바로 다음** — floor가 채워지면 **LLM 루프를 돌린다.** 2026-10-31 이후 한 번도 돌지
-않았고, 그 사이 액션 공간·수용 임계값·레시피 구조가 모두 바뀌었다.
+**같은 seed 0의 두 실행이 다른 궤적을 그렸다** — 하나는 R0에서 번들로 4필드를 움직여
+수락했고, 하나는 7라운드 내내 수락 0회로 θ₀에서 끝났다. 그래서:
 
-```bash
-V=/home/yoosun/legal/.venv-evolve/bin/python
-$V verify.py                                            # 네 데이터셋 게이트
-$V legal_evolve.py --dataset LeCaRDv2 --split train --rounds 7 \
-    --recipes bundles \
-    --base-url https://openrouter.ai/api/v1 --model openai/gpt-oss-120b
-$V runs.py select --dataset LeCaRDv2 --dir evolution_official --write
-```
+> 말할 수 있는 것: **반복 평균 +0.90pp, 실행 간 편차 ±0.70pp, 5회 중 4회 양수.**
+> 말할 수 없는 것: *"루프가 +1.14pp를 찾았다."*
 
-진단 LLM은 **OpenRouter / `openai/gpt-oss-120b`**이고 키는 실행 시
-`/home/yoosun/evolve/config.py`에서 읽는다(출력하지 않는다). 자체 vLLM은 띄우지 않는다.
+val 선택(`runs.py select`)도 같은 결론을 가리킨다 — 선택된 라운드의 Δval +0.0099에
+CI95 [-0.0047, +0.0249]가 붙어 **0을 포함한다**(val n=64). 스크립트가 스스로
+*"This is a ranking, not a measured gain"*을 찍는다.
 
-> **이 실행으로 무엇을 말할 수 있나.** 1회 실행이다. `temperature=0`인데도 라운드2 제안이
-> 갈린 전례가 있으므로(§11) 나오는 Δ는 "효과"가 아니라 **관측 하나**다. 반복 실행으로
-> σ_run을 재는 일은 아직 못 했다.
+**새로 발견된 것**: 수용 임계값이 **ACCEPT 라벨에만** 쓰이고 incumbent는 `f1 > best_f1`
+이기만 하면 갱신된다(`ELITISM-SOFT-ACCEPT`). floor 아래 라운드가 새 기준선이 되므로
+오늘 다시 유도한 noise floor가 우회된다. σ_run의 한 원인으로 보인다. 미해결.
+
+**돌고 있는 것** — `measure.py floor`가 COLIEE·LEGAR 임계값을 재고 있다
+(LeCaRD 0.0103, LeCaRDv2 0.0023 완료).
+
+**다음** — 아래 "다음 순서".
 
 ### 끝난 것 (2026-11-16 · 11-22) — 전부 사람 쪽 작업이다
 

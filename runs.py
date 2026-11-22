@@ -24,11 +24,9 @@ import argparse, json, os, sys
 import legal_retriever as L
 from legal_meta import LANG_OF
 from evolvemem.multi_retriever import RetrievalConfig
-from evaluate import CASE_DIR, QRELS, EVAL_K, in_split, weak_config
+from evaluate import CASE_DIR, EVAL_K, QRELS, evaluate, in_split, load_fold, load_index, weak_config
 import argparse, glob, json, os, sys
-from evaluate import EVAL_K, evaluate, load_fold, weak_config
 import argparse, json, os
-from evaluate import CASE_DIR, evaluate, weak_config
 from dataclasses import asdict
 
 
@@ -185,9 +183,9 @@ def _cli_select_on_val():
     a = ap.parse_args()
 
     run_dir = f"{a.dir}/{a.dataset}"
-    # `None` keeps every labelled query: this script re-scores saved run
-    # files per fold, so it needs the whole set, not one split.
-    index, _rows, labels = load_fold(a.dataset, None)
+    # No split: this re-scores saved run files per fold, so it needs the
+    # index and the qrels, never a filtered row list.
+    index, labels = load_index(a.dataset)
 
     def scores_from_run(run: dict) -> dict:
         """Per-query NDCG@30 from a run file -- no re-searching.

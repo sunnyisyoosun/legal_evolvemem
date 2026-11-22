@@ -1,0 +1,130 @@
+{
+  "best_round": 5,
+  "best_f1": 0.399163106378573,
+  "final_config": {
+    "semantic_top_k": 40,
+    "keyword_top_k": 100,
+    "structured_top_k": 0,
+    "max_context": 100,
+    "enable_entity_swap": true,
+    "entity_swap_semantic_k": 15,
+    "entity_swap_keyword_k": 20,
+    "fusion_mode": "rrf",
+    "weight_semantic": 0.5,
+    "weight_keyword": 1.0,
+    "weight_structured": 0.5,
+    "enable_query_rewrite": false,
+    "query_rewrite_repeat": 1,
+    "enable_chapter_filter": false,
+    "time_decay_half_life_days": null,
+    "recency_weight": 0.0,
+    "reference_date": null,
+    "reflection_rounds": 0,
+    "answer_style": "concise",
+    "per_category_overrides": {},
+    "enable_query_decomposition": false,
+    "decomposition_max_subqs": 3,
+    "decomposition_merge_top_k": 10,
+    "enable_intent_planning": false,
+    "intent_max_subqs": 4,
+    "intent_merge_top_k": 15,
+    "intent_final_context": 25,
+    "enable_coverage_reflection": false,
+    "coverage_max_rounds": 2,
+    "coverage_gap_max_queries": 3,
+    "enable_kg_expansion": false,
+    "kg_expand_top_k": 10,
+    "kg_seed_top_k": 10,
+    "kg_min_score": 2.0,
+    "kg_keep_strategy": "replace_tail",
+    "enable_answer_verification": false,
+    "verification_style": "strict",
+    "locomo_cat5_mcq": false,
+    "locomo_cat1_single_fact": false,
+    "locomo_cat2_temporal_format": false,
+    "locomo_cat3_inferential_nuanced": false,
+    "locomo_cat4_verbatim_copy": false,
+    "answer_model": null,
+    "answer_model_ensemble": null,
+    "mmr_diversity_weight": 0.0,
+    "mmr_candidate_pool": 40
+  },
+  "trajectory": [
+    {
+      "round": 0,
+      "f1": 0.38847430549678763,
+      "zero": 14,
+      "mems": 55192,
+      "improvements": [
+        "weight_semantic: 1.0 -> 0.5"
+      ]
+    },
+    {
+      "round": 1,
+      "f1": 0.38847430549678763,
+      "zero": 14,
+      "mems": 55192,
+      "improvements": [
+        "ELITISM-REJECT: delta=+0.0000 \u2264 threshold, revert to round 0 (f1=0.3885)",
+        "keyword_top_k: 100 -> 20",
+        "fusion_mode: keyword_only -> rrf",
+        "semantic_top_k: 0 -> 40"
+      ]
+    },
+    {
+      "round": 2,
+      "f1": 0.3718779891002387,
+      "zero": 11,
+      "mems": 55192,
+      "improvements": [
+        "ELITISM-REJECT: delta=-0.0166 \u2264 threshold, revert to round 0 (f1=0.3885)",
+        "fusion_mode: keyword_only -> rrf",
+        "weight_semantic: 1.0 -> 0.5",
+        "semantic_top_k: 0 -> 40"
+      ]
+    },
+    {
+      "round": 3,
+      "f1": 0.39329212347072706,
+      "zero": 14,
+      "mems": 55192,
+      "improvements": [
+        "ELITISM-ACCEPT: delta=+0.0048, new best",
+        "structured_top_k: 0 -> 15"
+      ]
+    },
+    {
+      "round": 4,
+      "f1": 0.39282148554632973,
+      "zero": 14,
+      "mems": 55192,
+      "improvements": [
+        "ELITISM-REJECT: delta=-0.0005 \u2264 threshold, revert to round 3 (f1=0.3933)",
+        "entity_swap_keyword_k: 100 -> 20",
+        "enable_entity_swap: False -> True"
+      ]
+    },
+    {
+      "round": 5,
+      "f1": 0.399163106378573,
+      "zero": 13,
+      "mems": 55192,
+      "improvements": [
+        "ELITISM-ACCEPT: delta=+0.0059, new best",
+        "per_category_overrides: {} -> {'6': {'semantic_top_k': 40}, '7': {'semantic_top_k': 40}, '8': {'semantic_top_k",
+        "structured_top_k: 0 -> 15"
+      ]
+    },
+    {
+      "round": 6,
+      "f1": 0.3988400231098789,
+      "zero": 13,
+      "mems": 55192,
+      "improvements": [
+        "ELITISM-REJECT: delta=-0.0003 \u2264 threshold, revert to round 5 (f1=0.3992)",
+        "keyword_top_k: 100 -> 20"
+      ]
+    }
+  ],
+  "total_duration": 372.6076557636261
+}
