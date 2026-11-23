@@ -33,9 +33,10 @@ import legal_retriever as L                      # noqa: E402
 import recipe_learning as RL                     # noqa: E402
 import registry as REG                           # noqa: E402
 import query_rewrite as QR                       # noqa: E402
-from evaluate import (CASE_DIR, EVAL_K, PRIMARY, QRELS, in_split, load_fold,  # noqa: E402
-                      load_pool, per_query, weak_config)
-from legal_meta import LANG_OF, LANG_OF                   # noqa: E402
+from evaluate import (CASE_DIR, EVAL_K, PRIMARY, QRELS, format_strata,  # noqa: E402
+                      in_split, load_fold, load_pool, per_query, stratify,
+                      weak_config)
+from legal_meta import LANG_OF                   # noqa: E402
 import argparse, collections, json, os, statistics as st, sys
 import legal_retriever as L
 from evolvemem.multi_retriever import RetrievalConfig
@@ -51,6 +52,7 @@ import recipe_learning as RL
 HERE = os.path.dirname(os.path.abspath(__file__))
 FLOOR_OUT = os.path.join(HERE, "noise_floor.json")
 RULE_OUT = os.path.join(HERE, "rule_lifts.json")
+BUNDLE_OUT = os.path.join(HERE, "bundle_lifts.json")
 
 # A fused state that is not theta_0. Half the floor pairs start here so the
 # estimate is not only "deltas away from the starting point", and the rule
@@ -124,7 +126,15 @@ def run_floor(a) -> None:
             m = RL.measure_pair(index, rows, labels, bases[base], change,
                                 base_scores=scored[base])
             hw = m["halfwidth"]
+            # The same delta, split by how many relevant documents the
+            # query has. A pair that moves only the |gold|=1 queries is
+            # moving RECALL OF ONE; a pair that moves only |gold|>=30 is
+            # moving ORDER. Reading one mean over both regimes hides which
+            # of the two a lever does (METHODOLOGY 5).
+            strata = stratify(rows, labels, m["deltas"])
             pairs_out[label] = {"base": base, "change": change,
+                                "by_gold": {k: [n, round(mu, 5)]
+                                            for k, (n, mu) in strata.items()},
                                 "delta": round(m["delta"], 5),
                                 "ci95": [round(m["ci95"][0], 5),
                                          round(m["ci95"][1], 5)],
@@ -212,11 +222,103 @@ def run_rules(a) -> None:
     print(f"{a.out}: {', '.join(sorted(table))}")
 
 
+# A representative move per field, for measuring bundles ONLY.
+#
+# A Bundle declares which fields must move together and deliberately carries
+# NO values -- that is the whole point of the type (METHODOLOGY 3). But an
+# interaction cannot be measured without moving something, so the
+# measurement has to choose values. They are declared here, in the measuring
+# script, and NOT in the bundle: a value that lives in the card is a value
+# the card hands the loop, which is the circularity JOURNAL 33 found.
+#
+# Consequence to keep in sight: the verdict is CONDITIONAL on these values.
+# A pair of fields can be additive at one operating point and interacting at
+# another, so every row records the move it used.
+BUNDLE_MOVES: dict[str, object] = {
+    "fusion_mode": "rrf",
+    "semantic_top_k": 100,
+    "structured_top_k": 100,
+    "keyword_top_k": 50,
+    "enable_entity_swap": True,
+    "entity_swap_keyword_k": 100,
+    "weight_semantic": 0.3,
+    "weight_structured": 0.1,
+    "weight_keyword": 0.8,
+    "enable_query_rewrite": True,
+    "enable_chapter_filter": True,
+    "mmr_diversity_weight": 0.3,
+}
+
+
+def run_bundles(a) -> None:
+    """Is each Bundle an EDGE, or just two fields someone grouped?
+
+    For fields A and B the loop scores four configurations on one fold --
+    base, +A, +B, +AB -- and asks whether the whole differs from the sum of
+    the parts. `recipe_learning.admit_bundle` does the test; this produces
+    the three per-query delta lists it needs.
+
+    A bundle of more than two fields is measured as 2x2 over a SPLIT of its
+    fields (first vs rest), because the question the bundle answers is "do
+    these have to move together", not "which subset interacts" -- the full
+    factorial would be 2^k scorings for an answer nobody asked for.
+
+    The base is a state where the bundle's trigger is true: measuring an
+    edge from a state the bundle would never fire in says nothing about the
+    edge.
+    """
+    import registry as REG
+    table = _load_table(a.out)
+    for ds in a.datasets:
+        index, rows, labels = load_fold(ds, a.split)
+        t0cfg = weak_config()
+        print(f"[{ds}] {a.split} n={len(rows)}", flush=True)
+        out = {}
+        for b in REG.BUNDLES:
+            fields = sorted(b.fields)
+            if not b.trigger({f: getattr(t0cfg, f, None)
+                              for f in RL._FIELD_TYPE}):
+                print(f"  {b.name}: trigger false at theta_0 -- skipped "
+                      f"(measure it from a state it fires in)", flush=True)
+                continue
+            missing = [f for f in fields if f not in BUNDLE_MOVES]
+            if missing:
+                print(f"  {b.name}: no declared move for {missing} -- "
+                      f"add it to BUNDLE_MOVES", flush=True)
+                continue
+            a_fields, b_fields = fields[:1], fields[1:]
+            mv = lambda fs: {f: BUNDLE_MOVES[f] for f in fs}
+            t = time.time()
+            m_a = RL.measure_pair(index, rows, labels, t0cfg, mv(a_fields))
+            m_b = RL.measure_pair(index, rows, labels, t0cfg, mv(b_fields),
+                                  base_scores=m_a["base_scores"])
+            m_ab = RL.measure_pair(index, rows, labels, t0cfg, mv(fields),
+                                   base_scores=m_a["base_scores"])
+            ok, why = RL.admit_bundle(m_a["deltas"], m_b["deltas"],
+                                      m_ab["deltas"])
+            out[b.name] = {
+                "fields": fields, "A": a_fields, "B": b_fields,
+                "moves": mv(fields),
+                "delta_a": round(m_a["delta"], 5),
+                "delta_b": round(m_b["delta"], 5),
+                "delta_ab": round(m_ab["delta"], 5),
+                "interaction": round(
+                    m_ab["delta"] - (m_a["delta"] + m_b["delta"]), 5),
+                "admitted": ok, "why": why,
+            }
+            print(f"  {b.name:28s} {'EDGE' if ok else 'additive'}  {why}  "
+                  f"({time.time() - t:.0f}s)", flush=True)
+        table[ds] = {"n": len(rows), "split": a.split, "bundles": out}
+        _save(table, a.out)
+    print(f"{a.out}: {', '.join(sorted(table))}")
+
+
 def _cli_measure() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     sub = ap.add_subparsers(dest="what", required=True)
     for name, out, fn in (("floor", FLOOR_OUT, run_floor),
-                          ("rules", RULE_OUT, run_rules)):
+                          ("rules", RULE_OUT, run_rules),
+                          ("bundles", BUNDLE_OUT, run_bundles)):
         p = sub.add_parser(name)
         p.add_argument("--datasets", nargs="+",
                        default=["LeCaRDv2", "LeCaRD", "COLIEE", "LEGAR_stricter"])
@@ -723,7 +825,7 @@ def _one(ds: str, n_spans: int) -> None:
 
 
 # ── one entry point ───────────────────────────────────────────────────────
-STAGES = {"floor": None, "rules": None,
+STAGES = {"floor": None, "rules": None, "bundles": None,
           "grid": _cli_sweep, "strip": _cli_strip_components}
 
 
@@ -732,7 +834,7 @@ def main() -> int:
         print(__doc__)
         return 2
     stage, rest = sys.argv[1], sys.argv[2:]
-    if stage in ("floor", "rules"):
+    if stage in ("floor", "rules", "bundles"):
         sys.argv = [f"measure.py {stage}", stage] + rest
         return _cli_measure()
     sys.argv = [f"measure.py {stage}"] + rest

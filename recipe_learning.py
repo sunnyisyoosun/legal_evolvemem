@@ -308,9 +308,16 @@ def measure_pair(index, rows, labels, base_cfg, change: dict,
             "deltas": d, "base_scores": bv}
 
 
-def admit(deltas: list[float], after: float, theta0: float,
-          n_tested: int = 1, *, threshold: float) -> tuple[bool, str]:
-    """Three gates. Any one of them failing is a rejection.
+def admit_rule(deltas: list[float], after: float, theta0: float,
+               n_tested: int = 1, *, threshold: float) -> tuple[bool, str]:
+    """Three gates on an EFFECT. Any one of them failing is a rejection.
+
+    This is the admission path for things that have a measurable delta: a
+    Rule (METHODOLOGY 3) and, historically, a card carrying values. It is
+    NOT the path for a Bundle -- a Bundle carries no values, so it has no
+    delta of its own and `admit_bundle` tests an interaction instead. One
+    function could not serve both, and `admit` serving both by name was the
+    design error the type split exposed.
 
     1. the CI lower bound clears zero, at a level corrected for how many
        candidates this session has tested against the same fold
@@ -343,6 +350,44 @@ def admit(deltas: list[float], after: float, theta0: float,
         return False, (f"beats its trigger base but not theta_0 "
                        f"({after:.4f} <= {theta0:.4f}); {detail}")
     return True, f"admitted; {detail}"
+
+
+def admit_bundle(d_a: list[float], d_b: list[float], d_ab: list[float],
+                 n_tested: int = 1) -> tuple[bool, str]:
+    """One gate on an INTERACTION: does moving the fields together beat the
+    sum of moving them apart?
+
+        interaction_q = delta_AB(q) - (delta_A(q) + delta_B(q))
+
+    per query, then a paired bootstrap over those. Admitted when the CI
+    excludes zero -- in either direction, because a bundle whose fields
+    CANCEL when applied separately is as real an edge as one whose fields
+    reinforce. What it must not be is additive: if the whole equals the sum
+    of its parts, the loop can reach the same place one field at a time and
+    the bundle buys nothing but a step-cap slot (METHODOLOGY 3, the 2x2).
+
+    No noise-floor gate here. The floor describes the uncertainty of a
+    DELTA; this quantity is a difference of three deltas and carries their
+    variance, which the bootstrap already measures. Adding the floor on top
+    would be applying a bar measured on one scale to a number on another.
+
+    All three lists must come from the SAME queries in the same order.
+    """
+    import statistics as _st
+    if not (len(d_a) == len(d_b) == len(d_ab)) or not d_ab:
+        return False, "mismatched or empty per-query lists"
+    inter = [ab - (a + b) for a, b, ab in zip(d_a, d_b, d_ab)]
+    alpha = ALPHA / max(1, n_tested)
+    lo, hi = bootstrap_ci(inter, alpha=alpha)
+    mean = _st.fmean(inter)
+    detail = (f"interaction={mean:+.4f} CI{100*(1-alpha):.1f}%="
+              f"[{lo:+.4f}, {hi:+.4f}] (k={n_tested}); "
+              f"A={_st.fmean(d_a):+.4f} B={_st.fmean(d_b):+.4f} "
+              f"AB={_st.fmean(d_ab):+.4f}")
+    if lo <= 0 <= hi:
+        return False, (f"additive -- the fields do not need each other; "
+                       f"{detail}")
+    return True, f"admitted as an edge; {detail}"
 
 
 def crowding(store: dict) -> str | None:
@@ -670,6 +715,7 @@ def as_recipes(store: dict | None = None,
 
 LIFTS = os.path.join(HERE, "recipe_lifts.json")
 FLOORS = os.path.join(HERE, "noise_floor.json")
+RULE_LIFTS = os.path.join(HERE, "rule_lifts.json")
 
 
 def noise_floor(dataset: str) -> tuple[float, str]:
@@ -760,6 +806,57 @@ def noise_floor(dataset: str) -> tuple[float, str]:
             f"FALLBACK card-derived floor: median CI95 half-width over "
             f"{len(widths)} recipe cards on {dataset} {row['split']} "
             f"(n={row['n']}) -- run measure.py (floor) to replace it")
+
+
+def admitted_rules(dataset: str) -> tuple[list[str], list[tuple[str, str]]]:
+    """Which rewriting Rules earned their place on this dataset.
+
+    Reads what `measure.py rules` wrote and runs each row through the SAME
+    three gates `admit_rule` applies to a learned card -- the CI lower bound
+    over zero, the mean over this dataset's noise floor, and an endpoint
+    above theta_0. The measurement script already computed `claim_pp` with
+    those gates, so this agrees with it by construction; what this function
+    adds is the decision the number was measured FOR.
+
+    Returns (admitted names, [(name, why not), ...]). An absent row is NOT a
+    rejection: nobody measured it, and a rule nobody measured is reported as
+    unknown rather than refused. That distinction is the same one
+    `inert_report` draws during a run -- "tried and failed" and "never
+    exercised" must not look alike (METHODOLOGY 13).
+    """
+    try:
+        with open(RULE_LIFTS, encoding="utf-8") as f:
+            table = json.load(f)
+    except (OSError, ValueError):
+        return ([], [])
+    row = (table.get(dataset) or {}).get("rules") or {}
+    ok, refused = [], []
+    for name, m in sorted(row.items()):
+        if m.get("claim_pp"):
+            ok.append(name)
+        else:
+            why = m.get("zero_reason") or "no gain claimed"
+            refused.append((name, f"{why} (delta {m.get('delta', 0):+.4f}, "
+                                  f"CI95 {m.get('ci95')})"))
+    return (ok, refused)
+
+
+def rule_status(dataset: str) -> str:
+    """One line for the run log: which rules are admitted, refused, unknown."""
+    import registry as _REG
+    known_ok, refused = admitted_rules(dataset)
+    all_names = [r.name for r in _REG.RULES]
+    unknown = [n for n in all_names
+               if n not in known_ok and n not in dict(refused)]
+    parts = []
+    if known_ok:
+        parts.append("admitted " + ", ".join(known_ok))
+    for n, why in refused:
+        parts.append(f"REFUSED {n}: {why}")
+    if unknown:
+        parts.append("unmeasured " + ", ".join(unknown)
+                     + " (run `measure.py rules`)")
+    return "rules: " + ("; ".join(parts) if parts else "none in the pool")
 
 
 def install(extend: bool = True, dataset: str | None = None) -> int:

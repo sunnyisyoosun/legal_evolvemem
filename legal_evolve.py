@@ -472,6 +472,26 @@ def _install_diagnosis_context(qa_pairs: list[dict], dataset: str) -> None:
             fields.remove("enable_query_rewrite")
             dropped.append(f"enable_query_rewrite (no rewrites for {dataset} "
                            f"in {L.REWRITE_DIR})")
+    else:
+        # The cache exists, so the lever CAN act -- but a Rule that was
+        # measured and refused should not be offered either. Refused means
+        # `measure.py rules` ran and the three gates said no (CI over zero,
+        # mean over this dataset's noise floor, endpoint over theta_0);
+        # offering it anyway spends step-cap slots on a move already shown
+        # not to clear the bar on this corpus.
+        #
+        # UNMEASURED IS NOT REFUSED. A rule nobody has measured stays in the
+        # action space and says so in the log: "tried and failed" and "never
+        # exercised" must not look alike (METHODOLOGY 13), and the cold-start
+        # case -- a new dataset, a new rule -- is the unmeasured one.
+        _ok, _refused = _RLF.admitted_rules(dataset)
+        if _refused and not _ok and "enable_query_rewrite" in fields:
+            fields.remove("enable_query_rewrite")
+            dropped.append("enable_query_rewrite (every measured rule was "
+                           "refused on this dataset: "
+                           + "; ".join(f"{n} -- {why}" for n, why in _refused)
+                           + ")")
+    print(_RLF.rule_status(dataset), flush=True)
     DIAG.set_action_fields(fields)
     print(f"action space: {len(fields)} measured-effective "
           f"field(s) + per_category_overrides "

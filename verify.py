@@ -136,6 +136,17 @@ def check_prompt(dataset: str) -> list[str]:
     if "first_found" in RL.ENUMS.get("fusion_mode", ()):
         fail("first_found is still a legal recipe value in recipe_learning.ENUMS")
 
+    # 4c. a REFUSED rule must not still be proposable
+    #
+    # `measure.py rules` writes the verdict and `legal_evolve` acts on it;
+    # nothing checked that the two agree. A rule measured and refused, whose
+    # lever is still in the action space, is a step-cap slot the loop spends
+    # on a move already shown not to clear this corpus's bar.
+    _ok_rules, _refused_rules = RL.admitted_rules(dataset)
+    if _refused_rules and not _ok_rules and "enable_query_rewrite" in fields:
+        fail("every measured rule is refused here, but enable_query_rewrite "
+             "is still proposable: " + "; ".join(n for n, _ in _refused_rules))
+
     # 5. no marker left unsubstituted, no LoCoMo residue
     for marker in (DP.ACTION_SPACE_MARKER, DP.PRIORITY_MARKER):
         if marker in prompt:
@@ -255,6 +266,25 @@ def check_levers() -> list[str]:
             if sh.name not in table:
                 fail(f"bundle shim {sh.name} has no {lang} text; "
                      f"install_recipe_text would raise mid-run")
+    # Two admission paths, and they must not collapse back into one. A
+    # Bundle has no delta, so testing it with the effect gates would ask a
+    # question its type cannot answer -- that is the error the split fixed.
+    for fn in ("admit_rule", "admit_bundle"):
+        if not hasattr(RL, fn):
+            fail(f"recipe_learning.{fn} is missing: the two admission paths "
+                 f"have collapsed back into one")
+    # Self-test the interaction gate on constructed data: a broken bootstrap
+    # here would admit every bundle silently, and no dataset would show it.
+    if hasattr(RL, "admit_bundle"):
+        add_ok, _ = RL.admit_bundle([0.02] * 60, [0.01] * 60, [0.03] * 60)
+        syn_ok, _ = RL.admit_bundle([0.0] * 60, [0.0] * 60, [0.02] * 60)
+        if add_ok:
+            fail("admit_bundle admitted a perfectly ADDITIVE pair -- the "
+                 "interaction test is not testing an interaction")
+        if not syn_ok:
+            fail("admit_bundle refused a pair that only works together -- "
+                 "the gate would reject every real edge")
+
     # The cap seam is what makes an empty shim mean anything. Without it the
     # vendor charges a slot for a card that set nothing, which is strictly
     # worse than having no bundle at all.

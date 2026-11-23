@@ -174,7 +174,10 @@ def main():
         deltas = [b - a_ for a_, b in zip(base_v, after_v)]
         delta = after - base
         n_tested += 1
-        ok, why = RL.admit(deltas, after, theta0, n_tested=n_tested,
+        # A learned card carries values, so it is admitted on its EFFECT.
+        # `admit_bundle` is the other path, for a card that carries only
+        # a field set (METHODOLOGY 3).
+        ok, why = RL.admit_rule(deltas, after, theta0, n_tested=n_tested,
                            threshold=floor)
         full = RL.crowding(store)
         if ok and full:

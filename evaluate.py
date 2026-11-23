@@ -97,6 +97,57 @@ def per_query(index, rows, labels, config: RetrievalConfig,
     return out
 
 
+# NDCG@30 asks a different question depending on how many relevant
+# documents a query has, and across these four benchmarks that number spans
+# 30x. Measured over the qrels (2026-11-23):
+#
+#   LeCaRDv2  800 q   median |gold| 30   60.2% of queries have >= 30
+#   LeCaRD    107 q   median |gold| 29   40.2%
+#   COLIEE   1673 q   median |gold|  3    0.1%
+#   LEGAR    5803 q   median |gold|  1    0.7%
+#
+# With one relevant document, NDCG@30 is 1/log2(rank+1) or zero -- a
+# rank-of-the-single-answer metric, MRR in all but name. With thirty, recall
+# at 30 is already 1.0 for most queries and what is left to move is the
+# ORDER of the graded labels. A +0.01 means different events in the two
+# regimes, so a table that puts four such deltas side by side implies a
+# commensurability the metric does not have (METHODOLOGY 5).
+#
+# The buckets are a property of the QUERY, not of the dataset, which is what
+# makes them useful: LeCaRDv2 has 40% of its queries in the small-gold
+# regime, so "does this lever adapt to the dataset or to the regime" can be
+# asked INSIDE one corpus, on run files that already exist.
+GOLD_BUCKETS = ((1, 1, "|gold|=1"), (2, 5, "|gold|2-5"),
+                (6, 29, "|gold|6-29"), (30, 10**9, "|gold|>=30"))
+
+
+def gold_bucket(rel: dict) -> str:
+    n = sum(1 for v in (rel or {}).values() if v and float(v) > 0)
+    for lo, hi, name in GOLD_BUCKETS:
+        if lo <= n <= hi:
+            return name
+    return "|gold|=0"
+
+
+def stratify(rows, labels, scores) -> dict[str, tuple[int, float]]:
+    """{bucket: (n, mean score)} for one config's per-query scores.
+
+    Takes `scores` rather than re-searching: the stratification is a reading
+    of numbers already produced, so it costs nothing to add to any caller
+    that already has `per_query` output.
+    """
+    import statistics as _st
+    by: dict[str, list[float]] = {}
+    for q, sc in zip(rows, scores):
+        by.setdefault(gold_bucket(labels.get(q["query_id"])), []).append(sc)
+    return {k: (len(v), _st.fmean(v)) for k, v in sorted(by.items())}
+
+
+def format_strata(strata: dict[str, tuple[int, float]], metric: str) -> str:
+    return "  ".join(f"{k} n={n} {metric}={m:.4f}"
+                     for k, (n, m) in strata.items())
+
+
 def load_index(dataset: str, *, emb_tag: str = "m3", suffix: str = ""):
     """(index, labels) with no split involved.
 

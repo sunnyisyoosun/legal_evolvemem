@@ -1,0 +1,64 @@
+{
+ "LeCaRD": {
+  "n": 79,
+  "split": "train",
+  "bundles": {
+   "semantic_needs_score_fusion": {
+    "fields": [
+     "fusion_mode",
+     "semantic_top_k",
+     "weight_semantic"
+    ],
+    "A": [
+     "fusion_mode"
+    ],
+    "B": [
+     "semantic_top_k",
+     "weight_semantic"
+    ],
+    "moves": {
+     "fusion_mode": "rrf",
+     "semantic_top_k": 100,
+     "weight_semantic": 0.3
+    },
+    "delta_a": 0.0,
+    "delta_b": 0.0,
+    "delta_ab": 0.01334,
+    "interaction": 0.01334,
+    "admitted": false,
+    "why": "additive -- the fields do not need each other; interaction=+0.0133 CI95.0%=[-0.0032, +0.0300] (k=1); A=+0.0000 B=+0.0000 AB=+0.0133"
+   }
+  }
+ },
+ "LeCaRDv2": {
+  "n": 576,
+  "split": "train",
+  "bundles": {
+   "semantic_needs_score_fusion": {
+    "fields": [
+     "fusion_mode",
+     "semantic_top_k",
+     "weight_semantic"
+    ],
+    "A": [
+     "fusion_mode"
+    ],
+    "B": [
+     "semantic_top_k",
+     "weight_semantic"
+    ],
+    "moves": {
+     "fusion_mode": "rrf",
+     "semantic_top_k": 100,
+     "weight_semantic": 0.3
+    },
+    "delta_a": 0.0,
+    "delta_b": 0.0,
+    "delta_ab": 0.01404,
+    "interaction": 0.01404,
+    "admitted": true,
+    "why": "admitted as an edge; interaction=+0.0140 CI95.0%=[+0.0095, +0.0184] (k=1); A=+0.0000 B=+0.0000 AB=+0.0140"
+   }
+  }
+ }
+}

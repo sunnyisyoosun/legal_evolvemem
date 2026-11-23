@@ -335,7 +335,8 @@ class Rule:
 BUNDLES: tuple[Bundle, ...] = (
     Bundle(
         name="semantic_needs_score_fusion",
-        fields=frozenset({"fusion_mode", "semantic_top_k"}),
+        fields=frozenset({"fusion_mode", "semantic_top_k",
+                          "weight_semantic"}),
         rationale=(
             "Switching the semantic view on without moving fusion off a "
             "non-scoring mode measured -0.115: under `first_found` the views "
@@ -347,7 +348,16 @@ BUNDLES: tuple[Bundle, ...] = (
             "space'). NOTE: `first_found` is now refused outright, so what "
             "survives here is the weaker dependency between depth and "
             "fusion, and whether that still earns a bundle is the 2x2 this "
-            "section specifies."),
+            "section specifies. "
+            "`weight_semantic` JOINED THE SET on 2026-11-23, because the "
+            "2x2 said so: measured on LeCaRD train, fusion alone is "
+            "+0.0000, depth alone is +0.0000, and the two together are "
+            "-0.1068. The pair is non-additive, but in the wrong direction "
+            "-- moving both lands on theta_0's unchosen `weight_semantic` "
+            "of 1.0, where semantic scores drown the BM25 ranking. The "
+            "rationale had been telling the LLM to set that field in the "
+            "same round, in prose; a dependency stated in prose is a "
+            "dependency the step cap does not know about."),
         trigger=lambda cfg: int(cfg.get("semantic_top_k") or 0) == 0,
     ),
 )
